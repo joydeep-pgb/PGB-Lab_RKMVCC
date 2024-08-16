@@ -5,8 +5,8 @@ library(tidyr)
 
 # Create the data frame
 data <- data.frame(
-  lncRNA = c(2.67, 1.37, 2.11, 2.19, 1.99, 3.14, 2.67, 4.28, 3.92),
-  mRNA = c(0.88, 1.34, 1.72, 1.87, 3.04, 2.63, 5.32, 4.73, 4.18),
+  lncRNA = c(1.52, 2.14, 1.30, 4.24, 3.15, 3.73, 4.30, 5.10, 4.70),
+  mRNA = c(1.60, 2.70, 1.40, 3.30, 2.90, 3.10, 7.60, 6.30, 6.90),
   group = factor(c("D", "D", "D", "S", "S", "S", "DS", "DS", "DS"), 
                  levels = unique(c("D", "S", "DS")))
 )
@@ -41,9 +41,10 @@ ggbarplot(
     label = "p.signif", # Show significance levels
     method = "t.test", 
     tip.length = 0.02,
-    vjust = 0.5, 
+    vjust = 0.1, 
     size = 5, 
-    step.increase = 0.13) + 
+    step.increase = 0.1,
+    label.y = c(5, 6, 4.5)) + 
   # Apply custom theme and scales
   theme_classic() +
   scale_fill_manual(values = c('lncRNA' = 'skyblue', 'mRNA' = 'orange')) +
