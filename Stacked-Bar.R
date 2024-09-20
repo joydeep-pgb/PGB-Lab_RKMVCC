@@ -20,11 +20,11 @@ total_data <- data %>%
 
 # Create stacked bar plot with increased gap between comparisons
 ggplot(data, aes(x = Comparison, y = Count, fill = Direction)) +
-  geom_bar(stat = "identity", width = 0.4) +  # Reduce bar width
-  scale_x_discrete(expand = expansion(mult = c(0.2, 0.1))) +  # Add gap between categories
+  geom_bar(stat = "identity", width = 0.3) +  # Reduce bar width
+  scale_x_discrete(expand = expansion(mult = c(0.2, 0.01))) +  # Add gap between categories
   theme_classic() +
   labs(x = "", y = "Count", title = "") +
-  scale_fill_manual(values = c("Up" = "#d94d35", "Down" = "#4db1c9")) +
+  scale_fill_manual(values = c("Up" = "#f0a967", "Down" = "#bbdd87")) +
   theme(axis.line = element_line(size = 1, colour = "#4a4e69"),
         axis.ticks = element_line(size = 1, colour = "#4a4e69"),
         axis.text.x = element_text(size = 25, colour = "black"), 
@@ -32,4 +32,4 @@ ggplot(data, aes(x = Comparison, y = Count, fill = Direction)) +
         axis.title.x = element_text(size = 25, colour = "black"), 
         axis.title.y = element_text(size = 25, colour = "black"))
 
-ggsave(width = 8, height = 5, dpi = 600,"UP-Down_Bar.png")
+ggsave(width = 15, height = 6, dpi = 600,"UP-Down_Bar.png")
