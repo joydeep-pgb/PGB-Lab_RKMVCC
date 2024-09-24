@@ -27,7 +27,8 @@ ggbarplot(
   scales = "fixed", # Allow different y-scales for each facet
   xlab = "", 
   ylab = "Relative Fold Change",
-  title = ""
+  title = "",
+  size = 0.5
 ) + 
   # Add error bars
   stat_summary(
@@ -42,19 +43,23 @@ ggbarplot(
     method = "t.test", 
     tip.length = 0.02,
     vjust = 0.1, 
-    size = 5, 
+    size = 7, 
     step.increase = 0.1,
     label.y = c(5, 6, 4.5)) + 
   # Apply custom theme and scales
   theme_classic() +
   scale_fill_manual(values = c('lncRNA' = 'skyblue', 'mRNA' = 'orange')) +
+  coord_cartesian(ylim = c(0, 8), clip = "off") +
   scale_y_continuous(limits = c(0, 8), breaks = seq(0, 8, by = 2), expand = c(0, 0)) + 
   theme(
-    axis.line = element_line(linewidth = 0.8, colour = "gray60"),
-    axis.ticks = element_line(linewidth = 0.8, colour = "gray60"),
-    axis.text.x = element_text(size = 15, colour = "black"), 
-    axis.text.y = element_text(size = 15, colour = "black"),
-    axis.title.y = element_text(size = 15, colour = "black"), 
-    axis.ticks.length = unit(0.2, "cm"), 
-    legend.position = "none"
+    axis.line = element_line(linewidth = 1, colour = "#4a4e69"),
+    axis.ticks = element_line(linewidth = 1, colour = "#4a4e69"),
+    axis.text.x = element_text(size = 25, colour = "black"), 
+    axis.text.y = element_text(size = 25, colour = "black"),
+    axis.title.x = element_text(size = 25, colour = "black"), 
+    axis.title.y = element_text(size = 25, colour = "black"), 
+    axis.ticks.length = unit(0.3, "cm"), 
+    legend.position = "none",
+    strip.background = element_blank(), # Remove facet strip background
+    strip.text.x = element_blank() # Remove facet strip text
   )
