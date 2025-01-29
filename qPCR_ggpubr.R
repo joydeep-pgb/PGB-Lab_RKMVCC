@@ -5,16 +5,15 @@ library(tidyr)
 
 # Create the data frame
 data <- data.frame(
-  lncRNA = c(1.52, 2.14, 1.30, 4.24, 3.15, 3.73, 4.30, 5.10, 4.70),
-  mRNA = c(1.60, 2.70, 1.40, 3.30, 2.90, 3.10, 7.60, 6.30, 6.90),
-  group = factor(c("D", "D", "D", "S", "S", "S", "DS", "DS", "DS"), 
-                 levels = unique(c("D", "S", "DS")))
-)
+  lncRNA = c(1.4, 2.3, 1.5, 0.7, 0.9, 1.1, 1.6, 0.2, 1.1),
+  miRNA = c(0.7, 1.8, 1.4, 2.8, 2.7, 3.5, 4.2, 4.6, 5.1),
+  mRNA = c(2.7, 3.9, 2.5, 0.8, 1.3, 0.5, 0.4, 0.2, 0.7),
+  group = factor(c("LF", "LF", "LF", "GF", "GF", "GF", "RF", "RF", "RF"),
+                 levels = unique(c("LF", "GF", "RF"))))
 
 # Reshape the data to long format
-data_long <- pivot_longer(data, cols = c(lncRNA, mRNA), names_to = "type", values_to = "value")
+data_long <- pivot_longer(data, cols = c(lncRNA, miRNA, mRNA), names_to = "type", values_to = "value")
 
-# Create the faceted bar plot using ggpubr
 ggbarplot(
   data_long, 
   x = "group", 
@@ -22,35 +21,42 @@ ggbarplot(
   fill = "type",
   add = "mean", 
   color = "black",
-  width = 0.5,
-  facet.by = "type", # Facet by the 'type' column
-  scales = "fixed", # Allow different y-scales for each facet
+  width = 0.6,
+  facet.by = "type", 
+  scales = "fixed", # Keep consistent y-scales across facets (free_y/fixed)
   xlab = "", 
   ylab = "Relative Fold Change",
   title = "",
-  size = 0.5
+  size = 1 #Increase border size
 ) + 
   # Add error bars
   stat_summary(
     fun.data = mean_se, 
     geom = "errorbar", 
-    width = 0.2
+    width = 0.2,
+    size = 1
+  ) + 
+  # Add jitter points
+  geom_jitter(
+    position = position_jitter(width = 0.2), 
+    size = 5, 
+    color = "black",
+    fill = "white",
+    shape = 21
   ) + 
   # Add statistical comparisons
   stat_compare_means(
-    comparisons = list(c("D", "S"), c("D", "DS"), c("S", "DS")),
-    label = "p.signif", # Show significance levels
+    comparisons = list(c("LF", "GF"), c("GF", "RF"), c("LF", "RF")),
+    label = "p.signif", 
     method = "t.test", 
-    tip.length = 0.02,
-    vjust = 0.1, 
+    tip.length = 0.05,
+    vjust = 0.5, 
     size = 7, 
-    step.increase = 0.1,
-    label.y = c(5, 6, 4.5)) + 
+    label.y = c(4.5, 5, 5.5)) + 
   # Apply custom theme and scales
   theme_classic() +
-  scale_fill_manual(values = c('lncRNA' = 'skyblue', 'mRNA' = 'orange')) +
-  coord_cartesian(ylim = c(0, 8), clip = "off") +
-  scale_y_continuous(limits = c(0, 8), breaks = seq(0, 8, by = 2), expand = c(0, 0)) + 
+  scale_fill_manual(values = c('lncRNA' = '#a5de03', 'miRNA' = '#d6d760', 'mRNA' = '#01796f')) +
+  scale_y_continuous(limits = c(0, 6), breaks = seq(0, 6, by = 2), expand = c(0, 0)) + 
   theme(
     axis.line = element_line(linewidth = 1, colour = "#4a4e69"),
     axis.ticks = element_line(linewidth = 1, colour = "#4a4e69"),
@@ -60,6 +66,5 @@ ggbarplot(
     axis.title.y = element_text(size = 25, colour = "black"), 
     axis.ticks.length = unit(0.3, "cm"), 
     legend.position = "none",
-    strip.background = element_blank(), # Remove facet strip background
-    strip.text.x = element_blank() # Remove facet strip text
-  )
+    strip.background = element_blank(),
+    strip.text.x = element_blank())
