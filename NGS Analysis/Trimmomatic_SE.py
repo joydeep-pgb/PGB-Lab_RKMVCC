@@ -1,34 +1,25 @@
 import os
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
 def trimmomatic_single(input_dir, output_dir):
-    input_dir = Path(input_dir)
-    output_dir = Path(output_dir)
-    
     # Create the output directory if it doesn't exist
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # List all the single-end FASTQ files in the input directory
-    fastq_files = list(input_dir.glob("*.fastqsanger.gz"))
+    os.makedirs(output_dir, exist_ok=True)
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        for fastq_file in fastq_files:
-            sample_name = fastq_file.stem
-            output_path_paired = output_dir / f"{sample_name}_paired.fastqsanger.gz"
-            output_path_unpaired = output_dir / f"{sample_name}_unpaired.fastqsanger.gz"
+    # List all single-end FASTQ files in the input directory
+    fastq_files = [f for f in os.listdir(input_dir) if f.endswith(".fastq.gz") or f.endswith(".fq.gz")]
 
-            # Run Trimmomatic command for single-end reads in parallel
-            trim_cmd = [
-                "trimmomatic", 
-                "SE", "-threads", "4", str(fastq_file), 
-                str(output_path_paired), str(output_path_unpaired), 
-                "LEADING:3", "TRAILING:3", "SLIDINGWINDOW:4:20", "MINLEN:20"
-            ]
-            
-            executor.submit(subprocess.run, trim_cmd)
-    
+    # Loop through each single-end sample and run Trimmomatic
+    for fastq_file in fastq_files:
+        sample_name = fastq_file.replace(".fastq.gz", "").replace(".fq.gz", "")
+        input_path = os.path.join(input_dir, fastq_file)
+        output_path = os.path.join(output_dir, f"{sample_name}_trimmed.fastq.gz")
+
+        # Run Trimmomatic command for single-end reads
+        trim_cmd = f"trimmomatic SE -threads 4 {input_path} {output_path} LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:20"
+        subprocess.run(trim_cmd, shell=True)
+
+        print(f"Processed: {sample_name}")
+
     print("Trimming complete.")
 
 if __name__ == "__main__":
