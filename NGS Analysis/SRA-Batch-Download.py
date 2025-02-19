@@ -135,13 +135,13 @@ def fastq_dump_paired_end_parallel(srr_accessions: List[str], sra_dir: str, fast
 
 def main():
     # Path to the file containing SRR accession IDs
-    srr_file_path = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Root/SUS/SRA_List.txt"
+    srr_file_path = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Leaf/SUS/SRA.txt"
     
     # Directory to download SRA files to
-    sra_dir = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Root/SUS/SRA/"
+    sra_dir = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Leaf/SUS/Heat/SRA/"
     
     # Directory to store FASTQ files
-    fastq_dir = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Root/SUS/FASTQ/Drought_T75/"
+    fastq_dir = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Leaf/SUS/Heat/FASTQ/"
 
     # Create directories if they don't exist
     os.makedirs(sra_dir, exist_ok=True)

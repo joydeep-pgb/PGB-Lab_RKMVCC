@@ -15,7 +15,7 @@ def trimmomatic_single(input_dir, output_dir):
         output_path = os.path.join(output_dir, f"{sample_name}_trimmed.fastq.gz")
 
         # Run Trimmomatic command for single-end reads
-        trim_cmd = f"trimmomatic SE -threads 4 {input_path} {output_path} LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:20"
+        trim_cmd = f"trimmomatic SE -threads 6 {input_path} {output_path} LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:20"
         subprocess.run(trim_cmd, shell=True)
 
         print(f"Processed: {sample_name}")
@@ -23,7 +23,7 @@ def trimmomatic_single(input_dir, output_dir):
     print("Trimming complete.")
 
 if __name__ == "__main__":
-    input_dir = "/mnt/WD_Blue/Sorghum/TEST/FASTQ/"
-    output_dir = "/mnt/WD_Blue/Sorghum/TEST/Trimmed/"
+    input_dir = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Leaf/SUS/Heat/FASTQ/"
+    output_dir = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Leaf/SUS/Heat/FASTQ/"
 
     trimmomatic_single(input_dir, output_dir)
