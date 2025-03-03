@@ -24,11 +24,11 @@ def merge_tsv_files(folder_path, ref_column):
     return merged_df
 
 # Set the folder path and reference column name
-folder_path = 'FPKM'
-ref_column = 'transcript_id'
+folder_path = r"F:\Sorghum_MetaDEG\Batch\count drought"
+ref_column = 'gene_id'
 
 # Merge the files
 merged_df = merge_tsv_files(folder_path, ref_column)
 
 # Save the merged dataframe to a new TSV file
-merged_df.to_csv('mango_FPKM_RAW.txt', sep='\t', index=False)
+merged_df.to_csv('Sorghum_Drought_Counts.txt', sep='\t', index=False)
