@@ -2,13 +2,14 @@ import os
 import subprocess
 import shutil
 import multiprocessing
+import shlex
 from datetime import datetime
 
 # Configuration
 input_dir = "/home/pgb-lab/Documents/Sorghum_MetaDEG/Salt/Trimmed/"
-output_dir = "/home/pgb-lab/Documents/Sorghum_MetaDEG/Salt/STAR_Mapped/"
+output_dir = "/media/pgb-lab/One Touch/Sorghum_MetaDEG/Salt/STAR_Mapped/"
 index_path = "/home/pgb-lab/Documents/Sorghum_MetaDEG/STAR_Genome/"
-summary_dir = "/home/pgb-lab/Documents/Sorghum_MetaDEG/Salt/STAR_Mapped/Summary/"
+summary_dir = os.path.join(output_dir, "Summary")
 log_dir = os.path.join(summary_dir, "process_logs")
 
 # Resource allocation
@@ -53,13 +54,15 @@ def process_sample(sample):
         
         # STAR Command
         star_cmd = (
-            f"STAR --runThreadN {star_threads} "
-            f"--genomeDir {index_path} "
-            f"--readFilesIn {fq1_path} {fq2_path} "
-            f"--readFilesCommand zcat "
-            f"--outSAMtype BAM SortedByCoordinate "
-            f"--outFileNamePrefix {os.path.join(output_dir, sample_name + '_')}"
-        )
+    f"STAR --runThreadN {star_threads} "
+    f"--genomeDir {shlex.quote(index_path)} "
+    f"--readFilesIn {shlex.quote(fq1_path)} {shlex.quote(fq2_path)} "
+    f"--readFilesCommand zcat "
+    f"--outSAMtype BAM SortedByCoordinate "
+    f"--outTmpDir /tmp/{sample_name}_STARtmp "  # Set temp directory on Linux partition
+    f"--outFileNamePrefix {shlex.quote(os.path.join(output_dir, sample_name + '_'))}"
+)
+
 
         log(f"Executing: {star_cmd}")
         with open(log_path, "a") as f:
@@ -92,7 +95,7 @@ def process_sample(sample):
         # Index BAM
         log("Indexing BAM file")
         subprocess.run(
-            f"samtools index {sorted_bam}",
+            f"samtools index {shlex.quote(sorted_bam)}",
             shell=True,
             check=True,
             stdout=subprocess.DEVNULL,
