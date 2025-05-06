@@ -147,20 +147,21 @@ for i, (gene, ax) in enumerate(zip(df_all['Gene'].cat.categories, axes)):
     data_sub = df_all[df_all['Gene'] == gene]
 
     # Boxplot
-    sns.boxplot(x='Group', y='FC', data=data_sub, ax=ax, palette=palette, order=groups,
-                width=0.6, linewidth=1, fliersize=0,
-                boxprops=dict(edgecolor='black', linewidth=1),
-                whiskerprops=dict(color='black', linewidth=1),
-                capprops=dict(color='black', linewidth=1),
-                medianprops=dict(color='black', linewidth=1))
-
+    sns.boxplot(x='Group', y='FC', data=data_sub, ax=ax, hue='Group', palette=palette, 
+            order=groups, legend=False,
+            width=0.6, linewidth=1, fliersize=0,
+            boxprops=dict(edgecolor='black', linewidth=1),
+            whiskerprops=dict(color='black', linewidth=1),
+            capprops=dict(color='black', linewidth=1),
+            medianprops=dict(color='black', linewidth=1))
+    
     # Jitter points
     # sns.stripplot(x='Group', y='FC', data=data_sub, ax=ax, order=groups,
     #               jitter=0.2, color='black', edgecolor='white', linewidth=1.3,
     #               facecolor='black', size=8, alpha=1)
 
     # Add mean markers
-    means = data_sub.groupby('Group')['FC'].mean()
+    means = data_sub.groupby('Group', observed=False)['FC'].mean()
     for x, (group_name, mean_value) in enumerate(means.items()):
         ax.plot(x, mean_value, marker='o', markersize=8, 
                 markeredgecolor='black', markerfacecolor='white',
@@ -197,7 +198,7 @@ plt.rcParams['pdf.fonttype'] = 42  # Important for editable text in Illustrator
 plt.tight_layout()
 
 # Save as PDF
-plt.savefig("Gene_FC_Plots_NS.pdf", format="pdf", bbox_inches='tight')
+#plt.savefig("Gene_FC_Plots_NS.pdf", format="pdf", bbox_inches='tight')
 
 # Display the plot
 plt.show()
