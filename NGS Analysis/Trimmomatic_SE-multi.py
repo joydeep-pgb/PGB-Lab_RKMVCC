@@ -5,9 +5,15 @@ import multiprocessing
 def trimmomatic_single_sample(input_path, output_path):
     """Trims a single FASTQ file."""
     sample_name = os.path.basename(input_path).replace(".fastq.gz", "").replace(".fq.gz", "")
-    trim_cmd = f"trimmomatic SE -threads 1 {input_path} {output_path} LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:20"
+    trim_cmd = [
+        "trimmomatic", "SE",
+        "-threads", "1",
+        input_path,
+        output_path,
+        "LEADING:3", "TRAILING:3", "SLIDINGWINDOW:4:20", "MINLEN:20"
+    ]
     try:
-        subprocess.run(trim_cmd, shell=True, check=True)
+        subprocess.run(trim_cmd, check=True)
         print(f"Processed: {sample_name}")
         return True
     except subprocess.CalledProcessError as e:
