@@ -5,10 +5,16 @@ import multiprocessing
 def trimmomatic_paired_sample(input_path_1, input_path_2, output_path_1_paired, output_path_1_unpaired, output_path_2_paired, output_path_2_unpaired):
     """Trims a single paired-end sample."""
 
-    trim_cmd = f"trimmomatic PE -threads 1 {input_path_1} {input_path_2} {output_path_1_paired} {output_path_1_unpaired} {output_path_2_paired} {output_path_2_unpaired} LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:20"
+    cmd_list = [
+        "trimmomatic", "PE", "-threads", "1",
+        input_path_1, input_path_2,
+        output_path_1_paired, output_path_1_unpaired,
+        output_path_2_paired, output_path_2_unpaired,
+        "LEADING:3", "TRAILING:3", "SLIDINGWINDOW:4:20", "MINLEN:20"
+    ]
 
     try:
-        subprocess.run(trim_cmd, shell=True, check=True)
+        subprocess.run(cmd_list, check=True)
         sample_name = os.path.basename(input_path_1).replace("_1.fastq.gz", "")
         print(f"Processed: {sample_name}")
         return True
@@ -20,7 +26,6 @@ def trimmomatic_paired_sample(input_path_1, input_path_2, output_path_1_paired, 
         sample_name = os.path.basename(input_path_1).replace("_1.fastq.gz", "")
         print(f"Unexpected error processing {sample_name}: {e}")
         return False
-
 
 def trimmomatic_paired_parallel(input_dir, output_dir, num_processes):
     """Trims multiple paired-end samples in parallel."""
