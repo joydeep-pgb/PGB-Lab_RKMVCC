@@ -54,6 +54,6 @@ if __name__ == "__main__":
     input_dir = "/mnt/Blue_Drive/NGS_WD/Sorghum_MetaDEG/FASTQ/"
     output_dir = "/mnt/Blue_Drive/NGS_WD/Sorghum_MetaDEG/FASTQ_trimmed/"
     num_processes = multiprocessing.cpu_count()  # Use all available cores
-    # num_processes = 4 # For testing
+    num_processes = 4
 
     trimmomatic_parallel(input_dir, output_dir, num_processes)
