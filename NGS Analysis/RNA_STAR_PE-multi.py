@@ -6,15 +6,15 @@ import shlex
 from datetime import datetime
 
 # Configuration
-input_dir = "/run/media/joydeep/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Trimmed/"
-output_dir = "/run/media/joydeep/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Mapped_NEW/"
-index_path = "/run/media/joydeep/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Pvulgaris_Index/"
+input_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Root/Trimmed/NEW/"
+output_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Root/Mapped/"
+index_path = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Pvulgaris_Index/"
 summary_dir = os.path.join(output_dir, "Summary")
 log_dir = os.path.join(summary_dir, "process_logs")
 
 # Resource allocation
-star_threads = 8
-max_processes = 1  # Uses 8 threads per process
+star_threads = 4
+max_processes = 4  # Uses 8 threads per process
 
 # Create directories
 os.makedirs(output_dir, exist_ok=True)
