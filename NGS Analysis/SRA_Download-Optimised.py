@@ -73,9 +73,9 @@ def process_srr(srr: str, sra_dir: str, fastq_dir: str, max_retries: int = 3) ->
 
 def main():
     # Configuration paths
-    srr_file_path = "/mnt/Blue_Drive/NGS_WD/Sorghum_MetaDEG/Cold/cold.txt"
-    sra_dir = "/mnt/Blue_Drive/NGS_WD/Sorghum_MetaDEG/Cold/SRA/"
-    fastq_dir = "/mnt/Blue_Drive/NGS_WD/Sorghum_MetaDEG/Cold/FASTQ/New/"
+    srr_file_path = "/home/pgb-lab/Documents/Pvul_SRA/Drought_Root.txt"
+    sra_dir = "/home/pgb-lab/Documents/Pvul_SRA/SRA/"
+    fastq_dir = "/home/pgb-lab/Documents/Pvul_SRA/FASTQ/"
 
     # Create directories if needed
     os.makedirs(sra_dir, exist_ok=True)
