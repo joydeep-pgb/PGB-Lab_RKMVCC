@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Main folder where GTF files are located
-MAIN_FOLDER="/home/pgb-lab/Documents/Sorghum_MetaDEG/Drought/Assembled/"  # Change this to your folder path
+MAIN_FOLDER="/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Assembled"  # Change this to your folder path
 WORKING_DIR="$MAIN_FOLDER/Working_directory"
 
 # Create Working_directory if not exists
