@@ -2,13 +2,13 @@ import os
 import subprocess
 
 # Define the directory where your BAM files are located
-bam_dir = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Leaf/SUS/Salt/Mapped/"
+bam_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Mapped/"
 
 # Define the directory where you want to save the assembled transcripts
-output_dir = "/mnt/d/LAB_Data/Phaseolus_DEG/Phaseolus_Leaf/SUS/Salt/Assembled/"
+output_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Assembled/"
 
 # Define the path to the reference annotation GTF file
-reference_gtf = "/mnt/d/LAB_Data/Pvulgaris_442_v2.1.gene_exons.gff3"
+reference_gtf = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Pvulgaris_Index/Pvulgaris.gff3"
 
 # Create the output directory if it doesn't exist
 os.makedirs(output_dir, exist_ok=True)
