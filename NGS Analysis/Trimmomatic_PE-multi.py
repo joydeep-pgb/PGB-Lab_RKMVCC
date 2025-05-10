@@ -62,8 +62,8 @@ def trimmomatic_paired_parallel(input_dir, output_dir, num_processes):
 
 
 if __name__ == "__main__":
-    input_dir = "/mnt/Blue_Drive/NGS_WD/Sorghum_MetaDEG/Cold/Test/"  # Replace with your input directory
-    output_dir = "/mnt/Blue_Drive/NGS_WD/Sorghum_MetaDEG/Cold/Test/Trimmed/" # Replace with your output directory
+    input_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Root/FASTQ/"  # Replace with your input directory
+    output_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Root/Trimmed/NEW/" # Replace with your output directory
     num_processes = multiprocessing.cpu_count()  # Or a specific number like 4 for testing
     num_processes = 4
 
