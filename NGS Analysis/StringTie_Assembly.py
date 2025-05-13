@@ -2,13 +2,13 @@ import os
 import subprocess
 
 # Define the directory where your BAM files are located
-bam_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Mapped/"
+bam_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Root/Mapped/"
 
 # Define the directory where you want to save the assembled transcripts
-output_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Assembled/"
+output_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Root/Assembled/"
 
 # Define the path to the reference annotation GTF file
-reference_gtf = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Leaf/Pvulgaris_Index/Pvulgaris.gff3"
+reference_gtf = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Pvulgaris_Index/Pvulgaris.gff3"
 
 # Create the output directory if it doesn't exist
 os.makedirs(output_dir, exist_ok=True)
@@ -29,5 +29,5 @@ for bam_file in bam_files:
 
     print(f"Assembled: {sample_name}")
 
-print("Assembly complete with refference transcriptsonly.")
+print("Assembly complete with refference transcripts only.")
 
