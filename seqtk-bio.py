@@ -32,9 +32,9 @@ def write_extracted_sequences_to_file(extracted_sequences, output_file, line_len
                 out_file.write(sequence[i:i+line_length] + '\n')
 
 # Replace these file paths with your actual file paths
-gene_list_file_path = 'MangoMeta_lncRNA/Order_ID.txt'
-fasta_file_path = 'MangoMeta_lncRNA/mango_TA4_cds.fasta'
-output_file_path = 'MangoMeta_lncRNA/qPCR_Target.fasta'
+gene_list_file_path = r"C:\Users\ADMIN\Desktop\Documents\Mango ABC\FC1\UFvsRF_UP.txt"
+fasta_file_path = r"D:\Mango Genome_Annotation\mango_TA4_proteins_renamed.fasta"
+output_file_path = r"C:\Users\ADMIN\Desktop\Documents\Mango ABC\FC1\UFvsRF_UP.fasta"
 column_index_to_use = 0  # Specify the column index (0-based) containing gene IDs
 
 # Extract genes from the FASTA file based on the gene list and write to output file
