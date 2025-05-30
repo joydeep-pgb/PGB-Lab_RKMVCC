@@ -15,9 +15,9 @@ class DriveProcessViewer:
     def __init__(self, root):
         self.root = root
         self.root.title("Drive Process Manager")
-        self.root.geometry("1000x600")
+        self.root.geometry("840x600")
 
-        self.style = Style("flatly")  # Options: flatly, darkly, etc.
+        self.style = Style("darkly")  # Options: flatly, darkly, etc.
         self.root.configure(bg=self.style.colors.bg)
 
         # Set default font to Arial
