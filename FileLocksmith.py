@@ -1,12 +1,15 @@
 ## For Ubuntu/Debian-based systems, run: sudo apt install libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
+## sudo dnf install polkit-gnome   # Gnome
+## sudo dnf install polkit-kde     # KDE
 
 import sys
 import os
 import re
+import getpass
 import subprocess
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
-    QTreeWidget, QTreeWidgetItem, QHeaderView, QMessageBox
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
+    QPushButton, QTreeWidget, QTreeWidgetItem, QHeaderView, QMessageBox
 )
 from PySide6.QtCore import Qt
 
@@ -22,7 +25,7 @@ class DriveProcessViewer(QWidget):
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
 
-        # Top Layout
+        # Top layout
         top_layout = QHBoxLayout()
         top_layout.addWidget(QLabel("Select Drive:"))
 
@@ -39,7 +42,7 @@ class DriveProcessViewer(QWidget):
 
         main_layout.addLayout(top_layout)
 
-        # TreeView Layout
+        # Tree widget
         self.tree = QTreeWidget()
         self.tree.setColumnCount(4)
         self.tree.setHeaderLabels(["PID", "User", "Access", "Command"])
@@ -47,9 +50,8 @@ class DriveProcessViewer(QWidget):
         self.tree.itemSelectionChanged.connect(self.on_tree_select)
         main_layout.addWidget(self.tree)
 
-        # Bottom Layout
+        # Bottom layout
         bottom_layout = QHBoxLayout()
-
         self.status_label = QLabel("Ready")
         bottom_layout.addWidget(self.status_label)
 
@@ -66,7 +68,7 @@ class DriveProcessViewer(QWidget):
         main_layout.addLayout(bottom_layout)
 
     def run_as_root(self, command):
-        """Run commands as root using pkexec or fallback to sudo."""
+        """Try pkexec first, fallback to sudo."""
         try:
             return subprocess.run(["pkexec"] + command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         except Exception:
@@ -74,8 +76,17 @@ class DriveProcessViewer(QWidget):
 
     def populate_drives(self):
         try:
+            username = getpass.getuser()
             result = subprocess.run(["df", "-h", "--output=target"], stdout=subprocess.PIPE, text=True, check=True)
-            drives = [line.strip() for line in result.stdout.splitlines()[1:] if line.startswith("/media/") or line.startswith("/mnt/")]
+            drives = [
+                line.strip()
+                for line in result.stdout.splitlines()[1:]
+                if any([
+                    line.startswith("/media/"),
+                    line.startswith("/mnt/"),
+                    line.startswith(f"/run/media/{username}/")
+                ])
+            ]
             self.drive_combo.clear()
             self.drive_combo.addItems(drives)
             if drives:
