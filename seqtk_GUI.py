@@ -1,798 +1,788 @@
-import sys
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                               QHBoxLayout, QGridLayout, QLabel, QPushButton, 
-                               QLineEdit, QTextEdit, QComboBox, QFileDialog, 
-                               QMessageBox, QFrame, QSplitter, QMenuBar, QDialog)
-from PySide6.QtCore import Qt, QThread, Signal, QUrl
-from PySide6.QtGui import QFont, QPalette, QColor, QAction, QKeySequence, QDesktopServices
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
+    QTextEdit, QVBoxLayout, QHBoxLayout, QFileDialog, QComboBox,
+    QProgressBar, QMessageBox, QMenuBar, QMenu, QGroupBox, QGridLayout,
+    QSplitter, QFrame, QStatusBar, QToolBar, QSpacerItem, QSizePolicy
+)
+from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtGui import QAction, QIcon, QFont, QPixmap
 from Bio import SeqIO
+import sys
+import os
+
 
 class ExtractionWorker(QThread):
     """Worker thread for sequence extraction to prevent GUI freezing"""
-    finished = Signal(dict, set, int, int)
-    error = Signal(str)
-    
-    def __init__(self, gene_ids, fasta_file, output_file, line_length):
+    progress_updated = Signal(int)
+    status_updated = Signal(str)
+    extraction_completed = Signal(dict)
+    extraction_failed = Signal(str)
+
+    def __init__(self, gene_ids, fasta_file, output_file, line_len):
         super().__init__()
         self.gene_ids = gene_ids
         self.fasta_file = fasta_file
         self.output_file = output_file
-        self.line_length = line_length
-    
+        self.line_len = line_len
+
     def run(self):
         try:
-            # Read FASTA file
-            fasta_sequences = {}
+            self.progress_updated.emit(10)
+            self.status_updated.emit("Loading FASTA file...")
+            
+            fasta_dict = {}
             for record in SeqIO.parse(self.fasta_file, "fasta"):
-                fasta_sequences[record.id] = str(record.seq)
+                desc = record.description
+                locus = next((f.split("=")[1] for f in desc.split() if f.startswith("locus=")), None)
+                if locus:
+                    fasta_dict[locus] = {"header": desc, "sequence": str(record.seq)}
+
+            self.progress_updated.emit(40)
+            self.status_updated.emit("Extracting sequences...")
+
+            extracted = {gid: fasta_dict[gid] for gid in self.gene_ids if gid in fasta_dict}
             
-            # Extract sequences
-            extracted_genes = {gene_id: fasta_sequences[gene_id] 
-                             for gene_id in self.gene_ids if gene_id in fasta_sequences}
-            
-            # Write to output file
-            with open(self.output_file, 'w') as out_file:
-                for gene_id, sequence in extracted_genes.items():
-                    out_file.write(f'>{gene_id}\n')
-                    for i in range(0, len(sequence), self.line_length):
-                        out_file.write(sequence[i:i+self.line_length] + '\n')
-            
-            missing = self.gene_ids - extracted_genes.keys()
-            self.finished.emit(extracted_genes, missing, len(self.gene_ids), len(extracted_genes))
-            
+            self.progress_updated.emit(70)
+            self.status_updated.emit("Writing output file...")
+
+            with open(self.output_file, 'w') as f:
+                for data in extracted.values():
+                    f.write(f">{data['header']}\n")
+                    seq = data['sequence']
+                    for i in range(0, len(seq), self.line_len):
+                        f.write(seq[i:i+self.line_len] + '\n')
+
+            self.progress_updated.emit(100)
+            missing = self.gene_ids - extracted.keys()
+            result = {
+                'extracted_count': len(extracted),
+                'missing_count': len(missing),
+                'missing_ids': missing
+            }
+            self.extraction_completed.emit(result)
+
         except Exception as e:
-            self.error.emit(str(e))
+            self.extraction_failed.emit(str(e))
 
-class AboutDialog(QDialog):
-    """About dialog for the application"""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("About Gene Extractor")
-        self.setFixedSize(400, 300)
-        self.setModal(True)
-        
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        
-        # Title
-        title = QLabel("Gene Extractor")
-        title.setAlignment(Qt.AlignCenter)
-        title.setFont(QFont("Arial", 16, QFont.Bold))
-        layout.addWidget(title)
-        
-        # Version
-        version = QLabel("Version 2.0")
-        version.setAlignment(Qt.AlignCenter)
-        layout.addWidget(version)
-        
-        # Description
-        description = QLabel(
-            "A bioinformatics tool for extracting specific gene sequences "
-            "from FASTA files based on gene IDs.\n\n"
-            "Features:\n"
-            "• Extract multiple sequences by ID\n"
-            "• Customizable line length\n"
-            "• Missing ID detection\n"
-            "• Dark theme interface"
-        )
-        description.setWordWrap(True)
-        description.setAlignment(Qt.AlignCenter)
-        layout.addWidget(description)
-        
-        # Dependencies
-        deps = QLabel(
-            "Built with:\n"
-            "• PySide6 (Qt for Python)\n"
-            "• BioPython"
-        )
-        deps.setAlignment(Qt.AlignCenter)
-        layout.addWidget(deps)
-        
-        # Close button
-        close_btn = QPushButton("Close")
-        close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn)
 
-class GeneExtractorApp(QMainWindow):
+class GeneExtractor(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Extract Subsequences from FASTA/Q Files")
-        self.setGeometry(100, 100, 900, 700)
-        self.setMinimumSize(800, 600)
+        self.setWindowTitle("Gene Sequence Extractor - Phytozome")
+        self.setGeometry(100, 100, 1000, 700)
+        self.setAcceptDrops(True)
         
-        # Set up the UI
-        self.setup_menubar()
-        self.setup_ui()
-        self.apply_dark_theme()
-        
-        # Worker thread
+        # Initialize worker thread
         self.worker = None
         
-    def setup_menubar(self):
-        """Create and configure the menu bar"""
+        self.init_ui()
+        self.init_menu_bar()
+        self.init_status_bar()
+        self.apply_styles()
+
+    def init_ui(self):
+        # Central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        # Main layout
+        main_layout = QVBoxLayout()
+        central_widget.setLayout(main_layout)
+        
+        # Create splitter for better layout
+        splitter = QSplitter(Qt.Vertical)
+        main_layout.addWidget(splitter)
+        
+        # Input section
+        input_group = QGroupBox("Input Configuration")
+        input_layout = QGridLayout()
+        
+        # Locus IDs section
+        input_layout.addWidget(QLabel("Locus IDs to Extract:"), 0, 0)
+        self.id_text = QTextEdit()
+        self.id_text.setPlaceholderText("Enter locus IDs, one per line...")
+        self.id_text.setMaximumHeight(120)
+        input_layout.addWidget(self.id_text, 1, 0, 1, 3)
+        
+        # File inputs
+        input_layout.addWidget(QLabel("Input FASTA File:"), 2, 0)
+        self.fasta_input = QLineEdit()
+        self.fasta_input.setPlaceholderText("Select or drag & drop FASTA file...")
+        browse_fasta_btn = QPushButton("Browse...")
+        browse_fasta_btn.clicked.connect(self.browse_fasta)
+        input_layout.addWidget(self.fasta_input, 2, 1)
+        input_layout.addWidget(browse_fasta_btn, 2, 2)
+        
+        input_layout.addWidget(QLabel("Output File:"), 3, 0)
+        self.output_file = QLineEdit()
+        self.output_file.setPlaceholderText("Select output file location...")
+        browse_out_btn = QPushButton("Browse...")
+        browse_out_btn.clicked.connect(self.browse_output)
+        input_layout.addWidget(self.output_file, 3, 1)
+        input_layout.addWidget(browse_out_btn, 3, 2)
+        
+        # Options
+        input_layout.addWidget(QLabel("Line Length:"), 4, 0)
+        self.line_length = QComboBox()
+        self.line_length.addItems(["60", "70", "80", "100", "120"])
+        self.line_length.setCurrentText("60")
+        input_layout.addWidget(self.line_length, 4, 1)
+        
+        input_group.setLayout(input_layout)
+        splitter.addWidget(input_group)
+        
+        # Progress and control section
+        control_group = QGroupBox("Extraction Control")
+        control_layout = QVBoxLayout()
+        
+        # Progress bar
+        self.progress = QProgressBar()
+        self.progress.setValue(0)
+        control_layout.addWidget(self.progress)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        self.extract_btn = QPushButton("Extract Sequences")
+        self.extract_btn.clicked.connect(self.extract_sequences)
+        self.extract_btn.setStyleSheet("QPushButton { font-weight: bold; }")
+        
+        clear_btn = QPushButton("Clear All")
+        clear_btn.clicked.connect(self.clear_all)
+        
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.cancel_extraction)
+        self.cancel_btn.setEnabled(False)
+        
+        btn_layout.addWidget(self.extract_btn)
+        btn_layout.addWidget(clear_btn)
+        btn_layout.addWidget(self.cancel_btn)
+        btn_layout.addStretch()
+        
+        control_layout.addLayout(btn_layout)
+        control_group.setLayout(control_layout)
+        splitter.addWidget(control_group)
+        
+        # Results section
+        results_group = QGroupBox("Results")
+        results_layout = QVBoxLayout()
+        
+        self.results_text = QTextEdit()
+        self.results_text.setMaximumHeight(100)
+        self.results_text.setReadOnly(True)
+        self.results_text.setPlaceholderText("Extraction results will appear here...")
+        results_layout.addWidget(self.results_text)
+        
+        results_group.setLayout(results_layout)
+        splitter.addWidget(results_group)
+        
+        # Set splitter proportions
+        splitter.setSizes([300, 100, 100])
+
+    def init_menu_bar(self):
         menubar = self.menuBar()
         
         # File menu
-        file_menu = menubar.addMenu("&File")
+        file_menu = menubar.addMenu('&File')
         
-        # Open FASTA file action
-        open_fasta_action = QAction("&Open FASTA File...", self)
-        open_fasta_action.setShortcut(QKeySequence.StandardKey.Open)
-        open_fasta_action.setStatusTip("Open a FASTA file for processing")
+        open_fasta_action = QAction('&Open FASTA File', self)
+        open_fasta_action.setShortcut('Ctrl+O')
         open_fasta_action.triggered.connect(self.browse_fasta)
         file_menu.addAction(open_fasta_action)
         
-        # Save output as action
-        save_output_action = QAction("&Save Output As...", self)
-        save_output_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        save_output_action.setStatusTip("Choose output file location")
-        save_output_action.triggered.connect(self.browse_output)
-        file_menu.addAction(save_output_action)
+        save_results_action = QAction('&Save Results', self)
+        save_results_action.setShortcut('Ctrl+S')
+        save_results_action.triggered.connect(self.save_results)
+        file_menu.addAction(save_results_action)
         
         file_menu.addSeparator()
         
-        # Recent files submenu (placeholder for future implementation)
-        recent_menu = file_menu.addMenu("Recent Files")
-        no_recent_action = QAction("No recent files", self)
-        no_recent_action.setEnabled(False)
-        recent_menu.addAction(no_recent_action)
+        load_ids_action = QAction('Load &IDs from File', self)
+        load_ids_action.triggered.connect(self.load_ids_from_file)
+        file_menu.addAction(load_ids_action)
+        
+        export_ids_action = QAction('&Export IDs to File', self)
+        export_ids_action.triggered.connect(self.export_ids_to_file)
+        file_menu.addAction(export_ids_action)
         
         file_menu.addSeparator()
         
-        # Exit action
-        exit_action = QAction("E&xit", self)
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)
-        exit_action.setStatusTip("Exit the application")
+        exit_action = QAction('E&xit', self)
+        exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
         # Edit menu
-        edit_menu = menubar.addMenu("&Edit")
+        edit_menu = menubar.addMenu('&Edit')
         
-        # Clear all action
-        clear_action = QAction("&Clear All", self)
-        clear_action.setShortcut(QKeySequence("Ctrl+L"))
-        clear_action.setStatusTip("Clear all fields")
+        clear_action = QAction('&Clear All', self)
+        clear_action.setShortcut('Ctrl+L')
         clear_action.triggered.connect(self.clear_all)
         edit_menu.addAction(clear_action)
         
-        edit_menu.addSeparator()
-        
-        # Copy gene IDs action
-        copy_ids_action = QAction("Copy &Gene IDs", self)
-        copy_ids_action.setShortcut(QKeySequence.StandardKey.Copy)
-        copy_ids_action.setStatusTip("Copy gene IDs to clipboard")
-        copy_ids_action.triggered.connect(self.copy_gene_ids)
-        edit_menu.addAction(copy_ids_action)
-        
-        # Paste gene IDs action
-        paste_ids_action = QAction("&Paste Gene IDs", self)
-        paste_ids_action.setShortcut(QKeySequence.StandardKey.Paste)
-        paste_ids_action.setStatusTip("Paste gene IDs from clipboard")
-        paste_ids_action.triggered.connect(self.paste_gene_ids)
-        edit_menu.addAction(paste_ids_action)
+        clear_ids_action = QAction('Clear &IDs', self)
+        clear_ids_action.triggered.connect(self.id_text.clear)
+        edit_menu.addAction(clear_ids_action)
         
         # Tools menu
-        tools_menu = menubar.addMenu("&Tools")
+        tools_menu = menubar.addMenu('&Tools')
         
-        # Extract sequences action
-        extract_action = QAction("&Extract Sequences", self)
-        extract_action.setShortcut(QKeySequence("Ctrl+E"))
-        extract_action.setStatusTip("Start sequence extraction")
-        extract_action.triggered.connect(self.extract_sequences)
-        tools_menu.addAction(extract_action)
-        
-        tools_menu.addSeparator()
-        
-        # Validate FASTA action
-        validate_action = QAction("&Validate FASTA File", self)
-        validate_action.setShortcut(QKeySequence("Ctrl+V"))
-        validate_action.setStatusTip("Validate the selected FASTA file")
-        validate_action.triggered.connect(self.validate_fasta)
+        validate_action = QAction('&Validate Input', self)
+        validate_action.triggered.connect(self.validate_input)
         tools_menu.addAction(validate_action)
         
-        # Count sequences action
-        count_action = QAction("&Count Sequences", self)
-        count_action.setShortcut(QKeySequence("Ctrl+U"))
-        count_action.setStatusTip("Count sequences in FASTA file")
-        count_action.triggered.connect(self.count_sequences)
-        tools_menu.addAction(count_action)
-        
-        # Settings menu
-        settings_menu = menubar.addMenu("&Settings")
-        
-        # Theme submenu
-        theme_menu = settings_menu.addMenu("&Theme")
-        
-        dark_theme_action = QAction("&Dark Theme", self)
-        dark_theme_action.setCheckable(True)
-        dark_theme_action.setChecked(True)
-        dark_theme_action.triggered.connect(self.toggle_theme)
-        theme_menu.addAction(dark_theme_action)
-        
-        light_theme_action = QAction("&Light Theme", self)
-        light_theme_action.setCheckable(True)
-        light_theme_action.triggered.connect(self.toggle_theme)
-        theme_menu.addAction(light_theme_action)
+        count_ids_action = QAction('&Count IDs', self)
+        count_ids_action.triggered.connect(self.count_ids)
+        tools_menu.addAction(count_ids_action)
         
         # Help menu
-        help_menu = menubar.addMenu("&Help")
+        help_menu = menubar.addMenu('&Help')
         
-        # User guide action
-        guide_action = QAction("&User Guide", self)
-        guide_action.setShortcut(QKeySequence.StandardKey.HelpContents)
-        guide_action.setStatusTip("Show user guide")
-        guide_action.triggered.connect(self.show_user_guide)
-        help_menu.addAction(guide_action)
-        
-        # Keyboard shortcuts action
-        shortcuts_action = QAction("&Keyboard Shortcuts", self)
-        shortcuts_action.setShortcut(QKeySequence("Ctrl+?"))
-        shortcuts_action.setStatusTip("Show keyboard shortcuts")
-        shortcuts_action.triggered.connect(self.show_shortcuts)
-        help_menu.addAction(shortcuts_action)
-        
-        help_menu.addSeparator()
-        
-        # About action
-        about_action = QAction("&About", self)
-        about_action.setStatusTip("About this application")
+        about_action = QAction('&About', self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
         
-        # Store actions for later reference
-        self.extract_action = extract_action
-        self.dark_theme_action = dark_theme_action
-        self.light_theme_action = light_theme_action
-        
-    def setup_ui(self):
-        # Create central widget and main layout
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
-        main_layout.setSpacing(15)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Gene IDs section
-        gene_ids_label = QLabel("Gene IDs to Extract")
-        gene_ids_label.setFont(QFont("Arial", 12, QFont.Bold))
-        main_layout.addWidget(gene_ids_label)
-        
-        self.id_text = QTextEdit()
-        self.id_text.setMinimumHeight(200)
-        self.id_text.setPlaceholderText("Enter gene IDs, one per line...")
-        main_layout.addWidget(self.id_text)
-        
-        # File selection section
-        file_frame = QFrame()
-        file_layout = QGridLayout(file_frame)
-        file_layout.setSpacing(10)
-        
-        # Input FASTA file
-        file_layout.addWidget(QLabel("Input FASTA File:"), 0, 0)
-        self.fasta_entry = QLineEdit()
-        self.fasta_entry.setPlaceholderText("Select input FASTA file...")
-        file_layout.addWidget(self.fasta_entry, 0, 1)
-        
-        browse_fasta_btn = QPushButton("Browse...")
-        browse_fasta_btn.clicked.connect(self.browse_fasta)
-        file_layout.addWidget(browse_fasta_btn, 0, 2)
-        
-        # Output file
-        file_layout.addWidget(QLabel("Output File:"), 1, 0)
-        self.output_entry = QLineEdit()
-        self.output_entry.setPlaceholderText("Select output file location...")
-        file_layout.addWidget(self.output_entry, 1, 1)
-        
-        browse_output_btn = QPushButton("Browse...")
-        browse_output_btn.clicked.connect(self.browse_output)
-        file_layout.addWidget(browse_output_btn, 1, 2)
-        
-        # Line length option
-        file_layout.addWidget(QLabel("Line Length:"), 2, 0)
-        self.line_length = QComboBox()
-        self.line_length.addItems(["60", "70", "80", "100", "120"])
-        self.line_length.setCurrentText("60")
-        self.line_length.setMaximumWidth(100)
-        file_layout.addWidget(self.line_length, 2, 1, Qt.AlignLeft)
-        
-        # Make the entry fields expand
-        file_layout.setColumnStretch(1, 1)
-        main_layout.addWidget(file_frame)
-        
-        # Results section
-        results_frame = QFrame()
-        results_layout = QVBoxLayout(results_frame)
-        
-        self.results_label = QLabel("Ready to extract sequences")
-        self.results_label.setFont(QFont("Arial", 10, QFont.Bold))
-        results_layout.addWidget(self.results_label)
-        
-        self.missing_ids_text = QTextEdit()
-        self.missing_ids_text.setMaximumHeight(150)
-        self.missing_ids_text.setReadOnly(True)
-        self.missing_ids_text.setPlaceholderText("Missing IDs will be displayed here...")
-        results_layout.addWidget(self.missing_ids_text)
-        
-        main_layout.addWidget(results_frame)
-        
-        # Action buttons
-        button_layout = QHBoxLayout()
-        
-        self.extract_btn = QPushButton("Extract Sequences")
-        self.extract_btn.setMinimumHeight(35)
-        self.extract_btn.clicked.connect(self.extract_sequences)
-        button_layout.addWidget(self.extract_btn)
-        
-        clear_btn = QPushButton("Clear All")
-        clear_btn.setMinimumHeight(35)
-        clear_btn.clicked.connect(self.clear_all)
-        button_layout.addWidget(clear_btn)
-        
-        button_layout.addStretch()
-        
-        exit_btn = QPushButton("Exit")
-        exit_btn.setMinimumHeight(35)
-        exit_btn.clicked.connect(self.close)
-        button_layout.addWidget(exit_btn)
-        
-        main_layout.addLayout(button_layout)
-        
-    def apply_dark_theme(self):
-        """Apply a dark theme to the application"""
+        help_action = QAction('&Help', self)
+        help_action.setShortcut('F1')
+        help_action.triggered.connect(self.show_help)
+        help_menu.addAction(help_action)
+
+    def init_status_bar(self):
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.status_bar.showMessage("Ready to extract sequences")
+
+    def apply_styles(self):
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #2e2e2e;
-                color: white;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #f8f9fa, stop: 1 #e9ecef);
+                color: #212529;
             }
-            QWidget {
-                background-color: #2e2e2e;
-                color: white;
-            }
+            
             QMenuBar {
-                background-color: #3c3f41;
+                background-color: black;
                 color: white;
-                border-bottom: 1px solid #555;
-                padding: 2px;
+                border: none;
+                padding: 1px;
             }
+            
             QMenuBar::item {
                 background-color: transparent;
-                padding: 5px 10px;
-                border-radius: 3px;
+                padding: 8px 12px;
+                border-radius: 4px;
+                margin: 2px;
             }
+            
             QMenuBar::item:selected {
-                background-color: #4e5254;
+                background-color: #495057;
             }
+            
             QMenu {
-                background-color: #3c3f41;
-                color: white;
-                border: 1px solid #555;
-                padding: 2px;
+                background-color: black;
+                border: none;
+                border-radius: 8px;
+                padding: 8px;
             }
+            
             QMenu::item {
-                padding: 5px 20px;
-                border-radius: 3px;
+                padding: 8px 20px;
+                border-radius: 4px;
+                margin: 2px;
             }
+            
             QMenu::item:selected {
-                background-color: #4e5254;
+                background-color: #007bff;
+                color: White;
             }
-            QMenu::separator {
-                height: 1px;
-                background-color: #555;
-                margin: 2px 5px;
+            
+            QStatusBar {
+                background-color: #f8f9fa;
+                border-top: 1px solid #dee2e6;
+                color: #6c757d;
+                font-size: 12px;
             }
-            QLabel {
+            
+            QGroupBox {
+                font-weight: 600;
+                font-size: 14px;
+                color: #495057;
+                border: 2px solid #dee2e6;
+                border-radius: 12px;
+                margin-top: 15px;
+                padding-top: 15px;
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #ffffff, stop: 1 #f8f9fa);
+            }
+            
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 15px;
+                padding: 5px 10px;
+                background-color: #007bff;
                 color: white;
-                padding: 2px;
+                border-radius: 6px;
+                font-weight: bold;
             }
-            QTextEdit {
-                background-color: #3c3f41;
+            
+            QPushButton {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #007bff, stop: 1 #0056b3);
+                border: 1px solid #0056b3;
                 color: white;
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 5px;
-                selection-background-color: #5a5a5a;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 600;
+                min-height: 20px;
             }
+            
+            QPushButton:hover {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #0056b3, stop: 1 #004085);
+                border-color: #004085;
+            }
+            
+            QPushButton:pressed {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #004085, stop: 1 #002752);
+                border-color: #002752;
+            }
+            
+            QPushButton:disabled {
+                background: #6c757d;
+                color: #adb5bd;
+                border-color: #6c757d;
+            }
+            
+            QPushButton[text="Clear All"] {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #6c757d, stop: 1 #495057);
+                border-color: #495057;
+            }
+            
+            QPushButton[text="Clear All"]:hover {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #5a6268, stop: 1 #343a40);
+                border-color: #343a40;
+            }
+            
+            QPushButton[text="Cancel"] {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #dc3545, stop: 1 #c82333);
+                border-color: #c82333;
+            }
+            
+            QPushButton[text="Cancel"]:hover {
+                background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                    stop: 0 #c82333, stop: 1 #a71e2a);
+                border-color: #a71e2a;
+            }
+            
             QLineEdit {
-                background-color: #3c3f41;
-                color: white;
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 5px;
-                selection-background-color: #5a5a5a;
+                padding: 12px 16px;
+                border: 2px solid #ced4da;
+                border-radius: 8px;
+                font-size: 13px;
+                background-color: white;
+                selection-background-color: #007bff;
+                color: #495057;
             }
+            
+            QLineEdit:focus {
+                border-color: #007bff;
+                background-color: #ffffff;
+            }
+            
+            QLineEdit:hover {
+                border-color: #adb5bd;
+            }
+            
+            QTextEdit {
+                border: 2px solid #ced4da;
+                border-radius: 8px;
+                font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+                font-size: 12px;
+                background-color: #f8f9fa;
+                color: #495057;
+                selection-background-color: #007bff;
+                padding: 8px;
+            }
+            
+            QTextEdit:focus {
+                border-color: #007bff;
+                background-color: white;
+            }
+            
             QComboBox {
-                background-color: #3c3f41;
-                color: white;
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 5px;
-                min-width: 80px;
+                border: 2px solid #ced4da;
+                border-radius: 8px;
+                padding: 1px 1px;
+                font-size: 13px;
+                background-color: white;
+                color: #495057;
+                min-width: 100px;
             }
+            
+            QComboBox:focus {
+                border-color: #007bff;
+            }
+            
+            QComboBox:hover {
+                border-color: #adb5bd;
+            }
+            
             QComboBox::drop-down {
                 border: none;
-                background-color: #555;
-                border-radius: 2px;
+                width: 20px;
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
             }
+            
             QComboBox::down-arrow {
-                border: 2px solid white;
-                border-color: transparent transparent white transparent;
-                width: 0px;
-                height: 0px;
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #6c757d;
+                margin-right: 5px;
             }
-            QPushButton {
-                background-color: #3c3f41;
-                color: white;
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 8px 16px;
+            
+            QComboBox QAbstractItemView {
+                border: 2px solid #dee2e6;
+                border-radius: 1px;
+                background-color: white;
+                selection-background-color: #007bff;
+                selection-color: white;
+                outline: none;
+            }
+            
+            QProgressBar {
+                border: 2px solid #e9ecef;
+                border-radius: 12px;
+                text-align: center;
                 font-weight: bold;
+                font-size: 12px;
+                color: #495057;
+                background-color: #f8f9fa;
+                height: 24px;
             }
-            QPushButton:hover {
-                background-color: #4e5254;
-                border-color: #777;
+            
+            QProgressBar::chunk {
+                background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #28a745, stop: 0.5 #20c997, stop: 1 #17a2b8);
+                border-radius: 10px;
+                margin: 2px;
             }
-            QPushButton:pressed {
-                background-color: #2a2a2a;
+            
+            QLabel {
+                color: #495057;
+                font-size: 13px;
+                font-weight: 500;
             }
-            QPushButton:disabled {
-                background-color: #444;
-                color: #888;
-                border-color: #333;
+            
+            QSplitter::handle {
+                background-color: #dee2e6;
+                height: 2px;
+                border-radius: 1px;
             }
-            QFrame {
-                background-color: #2e2e2e;
+            
+            QSplitter::handle:hover {
+                background-color: #007bff;
             }
-            QDialog {
-                background-color: #2e2e2e;
-                color: white;
+            
+            /* Scrollbars */
+            QScrollBar:vertical {
+                background-color: #f8f9fa;
+                width: 12px;
+                border-radius: 6px;
+                border: 1px solid #e9ecef;
+            }
+            
+            QScrollBar::handle:vertical {
+                background-color: #ced4da;
+                border-radius: 5px;
+                min-height: 20px;
+                margin: 1px;
+            }
+            
+            QScrollBar::handle:vertical:hover {
+                background-color: #adb5bd;
+            }
+            
+            QScrollBar::handle:vertical:pressed {
+                background-color: #6c757d;
+            }
+            
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+                border: none;
+                background: none;
+            }
+            
+            QScrollBar:horizontal {
+                background-color: #f8f9fa;
+                height: 12px;
+                border-radius: 6px;
+                border: 1px solid #e9ecef;
+            }
+            
+            QScrollBar::handle:horizontal {
+                background-color: #ced4da;
+                border-radius: 5px;
+                min-width: 20px;
+                margin: 1px;
+            }
+            
+            QScrollBar::handle:horizontal:hover {
+                background-color: #adb5bd;
+            }
+            
+            QScrollBar::handle:horizontal:pressed {
+                background-color: #6c757d;
+            }
+            
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0px;
+                border: none;
+                background: none;
             }
         """)
-        
+
     def browse_fasta(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, 
-            "Select Input FASTA File", 
-            "", 
-            "FASTA files (*.fasta *.fa);;All files (*.*)"
+        file, _ = QFileDialog.getOpenFileName(
+            self, "Select FASTA File", "", 
+            "FASTA files (*.fasta *.fa *.fas);;All files (*.*)"
         )
-        if file_path:
-            self.fasta_entry.setText(file_path)
-            
+        if file:
+            self.fasta_input.setText(file)
+            self.status_bar.showMessage(f"Loaded FASTA file: {os.path.basename(file)}")
+
     def browse_output(self):
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, 
-            "Save Output File", 
-            "", 
+        file, _ = QFileDialog.getSaveFileName(
+            self, "Save Output File", "", 
             "FASTA files (*.fasta);;All files (*.*)"
         )
-        if file_path:
-            self.output_entry.setText(file_path)
-            
-    def extract_sequences(self):
-        # Get input values
-        gene_ids_text = self.id_text.toPlainText().strip()
-        gene_ids = {line.strip() for line in gene_ids_text.splitlines() if line.strip()}
-        fasta_file = self.fasta_entry.text().strip()
-        output_file = self.output_entry.text().strip()
-        
-        # Validate inputs
-        if not gene_ids:
-            QMessageBox.warning(self, "Input Error", "Please enter at least one Gene ID")
-            return
-        if not fasta_file:
-            QMessageBox.warning(self, "Input Error", "Please select an input FASTA file")
-            return
-        if not output_file:
-            QMessageBox.warning(self, "Input Error", "Please specify an output file")
-            return
-        
-        try:
-            line_length = int(self.line_length.currentText())
-        except ValueError:
-            QMessageBox.warning(self, "Input Error", "Line length must be an integer")
-            return
-            
-        # Disable extract button during processing
-        self.extract_btn.setEnabled(False)
-        self.extract_action.setEnabled(False)
-        self.extract_btn.setText("Extracting...")
-        self.results_label.setText("Processing...")
-        
-        # Start worker thread
-        self.worker = ExtractionWorker(gene_ids, fasta_file, output_file, line_length)
-        self.worker.finished.connect(self.on_extraction_finished)
-        self.worker.error.connect(self.on_extraction_error)
-        self.worker.start()
-        
-    def on_extraction_finished(self, extracted_genes, missing, total_requested, extracted_count):
-        # Re-enable extract button
-        self.extract_btn.setEnabled(True)
-        self.extract_action.setEnabled(True)
-        self.extract_btn.setText("Extract Sequences")
-        
-        if not extracted_genes:
-            QMessageBox.information(self, "No Results", "No matching sequences found")
-            self.results_label.setText("Ready to extract sequences")
-            return
-            
-        # Show results
-        self.results_label.setText(
-            f"Extraction complete! Requested: {total_requested}, "
-            f"Extracted: {extracted_count}, Missing: {len(missing)}"
+        if file:
+            self.output_file.setText(file)
+
+    def load_ids_from_file(self):
+        file, _ = QFileDialog.getOpenFileName(
+            self, "Load IDs from File", "", 
+            "Text files (*.txt);;All files (*.*)"
         )
-        
-        # Display missing IDs
-        if missing:
-            missing_text = "Missing IDs:\n" + "\n".join(sorted(missing))
-        else:
-            missing_text = "All requested IDs were found and extracted."
-        self.missing_ids_text.setPlainText(missing_text)
-        
-        QMessageBox.information(
-            self, 
-            "Success", 
-            f"Successfully extracted {extracted_count} sequences to:\n{self.output_entry.text()}"
+        if file:
+            try:
+                with open(file, 'r') as f:
+                    content = f.read()
+                    self.id_text.setPlainText(content)
+                self.status_bar.showMessage(f"Loaded IDs from: {os.path.basename(file)}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to load file: {str(e)}")
+
+    def export_ids_to_file(self):
+        if not self.id_text.toPlainText().strip():
+            QMessageBox.information(self, "Info", "No IDs to export")
+            return
+            
+        file, _ = QFileDialog.getSaveFileName(
+            self, "Export IDs to File", "", 
+            "Text files (*.txt);;All files (*.*)"
         )
-        
-    def on_extraction_error(self, error_message):
-        # Re-enable extract button
-        self.extract_btn.setEnabled(True)
-        self.extract_action.setEnabled(True)
-        self.extract_btn.setText("Extract Sequences")
-        self.results_label.setText("Ready to extract sequences")
-        
-        QMessageBox.critical(self, "Error", f"Error during extraction:\n{error_message}")
-        
-    def copy_gene_ids(self):
-        """Copy gene IDs to clipboard"""
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self.id_text.toPlainText())
-        
-    def paste_gene_ids(self):
-        """Paste gene IDs from clipboard"""
-        clipboard = QApplication.clipboard()
-        self.id_text.setPlainText(clipboard.text())
-        
-    def validate_fasta(self):
-        """Validate the selected FASTA file"""
-        fasta_file = self.fasta_entry.text().strip()
-        if not fasta_file:
-            QMessageBox.warning(self, "Input Error", "Please select a FASTA file first")
+        if file:
+            try:
+                with open(file, 'w') as f:
+                    f.write(self.id_text.toPlainText())
+                self.status_bar.showMessage(f"Exported IDs to: {os.path.basename(file)}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to save file: {str(e)}")
+
+    def save_results(self):
+        if not self.results_text.toPlainText().strip():
+            QMessageBox.information(self, "Info", "No results to save")
             return
             
-        try:
-            count = 0
-            for record in SeqIO.parse(fasta_file, "fasta"):
-                count += 1
-                if count > 10:  # Just check first 10 records for validation
-                    break
-            
-            if count > 0:
-                QMessageBox.information(self, "Validation Result", 
-                                      f"FASTA file appears to be valid.\nFound {count}+ sequences.")
-            else:
-                QMessageBox.warning(self, "Validation Result", 
-                                  "No valid sequences found in the file.")
-        except Exception as e:
-            QMessageBox.critical(self, "Validation Error", 
-                               f"Error validating FASTA file:\n{str(e)}")
-            
-    def count_sequences(self):
-        """Count total sequences in the FASTA file"""
-        fasta_file = self.fasta_entry.text().strip()
-        if not fasta_file:
-            QMessageBox.warning(self, "Input Error", "Please select a FASTA file first")
-            return
-            
-        try:
-            count = sum(1 for _ in SeqIO.parse(fasta_file, "fasta"))
-            QMessageBox.information(self, "Sequence Count", 
-                                  f"Total sequences in file: {count}")
-        except Exception as e:
-            QMessageBox.critical(self, "Count Error", 
-                               f"Error counting sequences:\n{str(e)}")
-            
-    def toggle_theme(self):
-        """Toggle between dark and light themes"""
-        sender = self.sender()
-        if sender == self.dark_theme_action:
-            self.light_theme_action.setChecked(False)
-            self.apply_dark_theme()
+        file, _ = QFileDialog.getSaveFileName(
+            self, "Save Results", "", 
+            "Text files (*.txt);;All files (*.*)"
+        )
+        if file:
+            try:
+                with open(file, 'w') as f:
+                    f.write(self.results_text.toPlainText())
+                self.status_bar.showMessage(f"Results saved to: {os.path.basename(file)}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to save results: {str(e)}")
+
+    def validate_input(self):
+        issues = []
+        
+        if not self.id_text.toPlainText().strip():
+            issues.append("• No locus IDs provided")
+        
+        if not self.fasta_input.text().strip():
+            issues.append("• No input FASTA file selected")
+        elif not os.path.exists(self.fasta_input.text()):
+            issues.append("• Input FASTA file does not exist")
+        
+        if not self.output_file.text().strip():
+            issues.append("• No output file specified")
+        
+        if issues:
+            QMessageBox.warning(self, "Validation Issues", 
+                              "Please fix the following issues:\n\n" + "\n".join(issues))
         else:
-            self.dark_theme_action.setChecked(False)
-            self.apply_light_theme()
-            
-    def apply_light_theme(self):
-        """Apply light theme to the application"""
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f0f0f0;
-                color: black;
-            }
-            QWidget {
-                background-color: #f0f0f0;
-                color: black;
-            }
-            QMenuBar {
-                background-color: #e0e0e0;
-                color: black;
-                border-bottom: 1px solid #ccc;
-                padding: 2px;
-            }
-            QMenuBar::item {
-                background-color: transparent;
-                padding: 5px 10px;
-                border-radius: 3px;
-            }
-            QMenuBar::item:selected {
-                background-color: #d0d0d0;
-            }
-            QMenu {
-                background-color: white;
-                color: black;
-                border: 1px solid #ccc;
-                padding: 2px;
-            }
-            QMenu::item {
-                padding: 5px 20px;
-                border-radius: 3px;
-            }
-            QMenu::item:selected {
-                background-color: #e0e0e0;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #ccc;
-                margin: 2px 5px;
-            }
-            QLabel {
-                color: black;
-                padding: 2px;
-            }
-            QTextEdit {
-                background-color: white;
-                color: black;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                padding: 5px;
-                selection-background-color: #b0b0ff;
-            }
-            QLineEdit {
-                background-color: white;
-                color: black;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                padding: 5px;
-                selection-background-color: #b0b0ff;
-            }
-            QComboBox {
-                background-color: white;
-                color: black;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                padding: 5px;
-                min-width: 80px;
-            }
-            QPushButton {
-                background-color: #e0e0e0;
-                color: black;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #d0d0d0;
-                border-color: #aaa;
-            }
-            QPushButton:pressed {
-                background-color: #c0c0c0;
-            }
-            QPushButton:disabled {
-                background-color: #f5f5f5;
-                color: #888;
-                border-color: #ddd;
-            }
-            QFrame {
-                background-color: #f0f0f0;
-            }
-            QDialog {
-                background-color: #f0f0f0;
-                color: black;
-            }
-        """)
-        
-    def show_user_guide(self):
-        """Show user guide dialog"""
-        guide_text = """
-<h3>Gene Extractor User Guide</h3>
+            QMessageBox.information(self, "Validation", "All inputs are valid!")
 
-<h4>Getting Started:</h4>
-<ol>
-<li><b>Enter Gene IDs:</b> Type or paste gene IDs in the text area, one per line</li>
-<li><b>Select Input File:</b> Choose your FASTA file using File → Open or the Browse button</li>
-<li><b>Choose Output Location:</b> Specify where to save extracted sequences</li>
-<li><b>Set Line Length:</b> Choose the number of characters per line (default: 60)</li>
-<li><b>Extract:</b> Click "Extract Sequences" or press Ctrl+E</li>
-</ol>
+    def count_ids(self):
+        ids = [line.strip() for line in self.id_text.toPlainText().splitlines() if line.strip()]
+        unique_ids = set(ids)
+        
+        msg = f"Total lines: {len(ids)}\nUnique IDs: {len(unique_ids)}"
+        if len(ids) != len(unique_ids):
+            msg += f"\nDuplicate IDs found: {len(ids) - len(unique_ids)}"
+        
+        QMessageBox.information(self, "ID Count", msg)
 
-<h4>Menu Options:</h4>
-<ul>
-<li><b>File Menu:</b> Open files, save output, view recent files, exit</li>
-<li><b>Edit Menu:</b> Clear fields, copy/paste gene IDs</li>
-<li><b>Tools Menu:</b> Extract sequences, validate FASTA, count sequences</li>
-<li><b>Settings Menu:</b> Switch between dark and light themes</li>
-<li><b>Help Menu:</b> View this guide, keyboard shortcuts, about info</li>
-</ul>
-
-<h4>Tips:</h4>
-<ul>
-<li>Use Ctrl+V to validate your FASTA file before extraction</li>
-<li>Use Ctrl+U to count total sequences in your file</li>
-<li>Missing IDs will be displayed in the results area</li>
-<li>The application supports both .fasta and .fa file extensions</li>
-</ul>
-        """
-        
-        msg = QMessageBox(self)
-        msg.setWindowTitle("User Guide")
-        msg.setTextFormat(Qt.RichText)
-        msg.setText(guide_text)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec()
-        
-    def show_shortcuts(self):
-        """Show keyboard shortcuts dialog"""
-        shortcuts_text = """
-<h3>Keyboard Shortcuts</h3>
-
-<table cellpadding="5">
-<tr><td><b>Ctrl+O</b></td><td>Open FASTA file</td></tr>
-<tr><td><b>Ctrl+S</b></td><td>Save output as</td></tr>
-<tr><td><b>Ctrl+Q</b></td><td>Exit application</td></tr>
-<tr><td><b>Ctrl+L</b></td><td>Clear all fields</td></tr>
-<tr><td><b>Ctrl+C</b></td><td>Copy gene IDs</td></tr>
-<tr><td><b>Ctrl+V</b></td><td>Paste gene IDs / Validate FASTA</td></tr>
-<tr><td><b>Ctrl+E</b></td><td>Extract sequences</td></tr>
-<tr><td><b>Ctrl+U</b></td><td>Count sequences</td></tr>
-<tr><td><b>Ctrl+?</b></td><td>Show shortcuts</td></tr>
-<tr><td><b>F1</b></td><td>User guide</td></tr>
-</table>
-        """
-        
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Keyboard Shortcuts")
-        msg.setTextFormat(Qt.RichText)
-        msg.setText(shortcuts_text)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec()
-        
     def show_about(self):
-        """Show about dialog"""
-        about_dialog = AboutDialog(self)
-        about_dialog.exec()
+        QMessageBox.about(self, "About Gene Sequence Extractor",
+                         "Gene Sequence Extractor v2.0\n\n"
+                         "A tool for extracting gene sequences from Phytozome FASTA files "
+                         "based on locus IDs.\n\n"
+                         "Built with PySide6 and BioPython")
+
+    def show_help(self):
+        help_text = """
+Gene Sequence Extractor Help
+
+How to use:
+1. Enter locus IDs in the text area (one per line)
+2. Select your input FASTA file
+3. Choose where to save the output
+4. Click 'Extract Sequences'
+
+Features:
+• Drag & drop FASTA files
+• Threaded extraction (non-blocking)
+• Progress tracking
+• Detailed results reporting
+• File management tools
+
+Keyboard shortcuts:
+• Ctrl+O: Open FASTA file
+• Ctrl+S: Save results
+• Ctrl+L: Clear all fields
+• Ctrl+Q: Exit
+• F1: Show this help
+        """
+        QMessageBox.information(self, "Help", help_text)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            path = url.toLocalFile()
+            if path.lower().endswith(('.fasta', '.fa', '.fas')):
+                self.fasta_input.setText(path)
+                self.status_bar.showMessage(f"Dropped FASTA file: {os.path.basename(path)}")
+            elif path.lower().endswith('.txt'):
+                try:
+                    with open(path, 'r') as f:
+                        content = f.read()
+                        self.id_text.setPlainText(content)
+                    self.status_bar.showMessage(f"Loaded IDs from: {os.path.basename(path)}")
+                except Exception as e:
+                    QMessageBox.warning(self, "Warning", f"Could not load text file: {str(e)}")
+
+    def extract_sequences(self):
+        gene_ids = {line.strip() for line in self.id_text.toPlainText().splitlines() if line.strip()}
+        fasta_file = self.fasta_input.text()
+        output_file = self.output_file.text()
         
+        try:
+            line_len = int(self.line_length.currentText())
+        except ValueError:
+            QMessageBox.warning(self, "Input Error", "Invalid line length")
+            return
+
+        if not gene_ids or not fasta_file or not output_file:
+            QMessageBox.warning(self, "Input Error", "Missing required input")
+            return
+
+        if not os.path.exists(fasta_file):
+            QMessageBox.warning(self, "File Error", "Input FASTA file does not exist")
+            return
+
+        # Start extraction in worker thread
+        self.worker = ExtractionWorker(gene_ids, fasta_file, output_file, line_len)
+        self.worker.progress_updated.connect(self.progress.setValue)
+        self.worker.status_updated.connect(self.status_bar.showMessage)
+        self.worker.extraction_completed.connect(self.on_extraction_completed)
+        self.worker.extraction_failed.connect(self.on_extraction_failed)
+        
+        self.extract_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(True)
+        self.worker.start()
+
+    def cancel_extraction(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.terminate()
+            self.worker.wait()
+            self.progress.setValue(0)
+            self.status_bar.showMessage("Extraction cancelled")
+            self.extract_btn.setEnabled(True)
+            self.cancel_btn.setEnabled(False)
+
+    def on_extraction_completed(self, result):
+        self.extract_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+        
+        extracted_count = result['extracted_count']
+        missing_count = result['missing_count']
+        missing_ids = result['missing_ids']
+        
+        msg = f"Extraction completed successfully!\n\n"
+        msg += f"Extracted sequences: {extracted_count}\n"
+        msg += f"Missing sequences: {missing_count}\n"
+        
+        if missing_ids:
+            msg += f"\nMissing IDs:\n" + "\n".join(list(missing_ids)[:10])
+            if len(missing_ids) > 10:
+                msg += f"\n... and {len(missing_ids) - 10} more"
+        
+        self.results_text.setPlainText(msg)
+        self.status_bar.showMessage(f"Extracted {extracted_count} sequences, {missing_count} missing")
+        
+        QMessageBox.information(self, "Extraction Complete", 
+                              f"Successfully extracted {extracted_count} sequences.\n"
+                              f"{missing_count} sequences were not found in the input file.")
+
+    def on_extraction_failed(self, error_msg):
+        self.extract_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+        self.progress.setValue(0)
+        self.status_bar.showMessage("Extraction failed")
+        
+        QMessageBox.critical(self, "Extraction Error", f"Extraction failed:\n\n{error_msg}")
+
     def clear_all(self):
         self.id_text.clear()
-        self.fasta_entry.clear()
-        self.output_entry.clear()
+        self.fasta_input.clear()
+        self.output_file.clear()
+        self.results_text.clear()
         self.line_length.setCurrentText("60")
-        self.results_label.setText("Ready to extract sequences")
-        self.missing_ids_text.clear()
+        self.progress.setValue(0)
+        self.status_bar.showMessage("Ready to extract sequences")
 
-def main():
+
+if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     # Set application properties
-    app.setApplicationName("Gene Extractor")
+    app.setApplicationName("Gene Sequence Extractor")
     app.setApplicationVersion("2.0")
     app.setOrganizationName("Bioinformatics Tools")
     
-    window = GeneExtractorApp()
+    window = GeneExtractor()
     window.show()
-    
     sys.exit(app.exec())
-
-if __name__ == "__main__":
-    main()
