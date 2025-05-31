@@ -1,192 +1,342 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, scrolledtext, messagebox
+import sys
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                               QHBoxLayout, QGridLayout, QLabel, QPushButton, 
+                               QLineEdit, QTextEdit, QComboBox, QFileDialog, 
+                               QMessageBox, QFrame, QSplitter)
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtGui import QFont, QPalette, QColor
 from Bio import SeqIO
 
-class GeneExtractorApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("extract subsequences from FASTA/Q files")
-        self.root.geometry("750x650")
-        self.root.resizable(True, True)
+class ExtractionWorker(QThread):
+    """Worker thread for sequence extraction to prevent GUI freezing"""
+    finished = Signal(dict, set, int, int)
+    error = Signal(str)
+    
+    def __init__(self, gene_ids, fasta_file, output_file, line_length):
+        super().__init__()
+        self.gene_ids = gene_ids
+        self.fasta_file = fasta_file
+        self.output_file = output_file
+        self.line_length = line_length
+    
+    def run(self):
+        try:
+            # Read FASTA file
+            fasta_sequences = {}
+            for record in SeqIO.parse(self.fasta_file, "fasta"):
+                fasta_sequences[record.id] = str(record.seq)
+            
+            # Extract sequences
+            extracted_genes = {gene_id: fasta_sequences[gene_id] 
+                             for gene_id in self.gene_ids if gene_id in fasta_sequences}
+            
+            # Write to output file
+            with open(self.output_file, 'w') as out_file:
+                for gene_id, sequence in extracted_genes.items():
+                    out_file.write(f'>{gene_id}\n')
+                    for i in range(0, len(sequence), self.line_length):
+                        out_file.write(sequence[i:i+self.line_length] + '\n')
+            
+            missing = self.gene_ids - extracted_genes.keys()
+            self.finished.emit(extracted_genes, missing, len(self.gene_ids), len(extracted_genes))
+            
+        except Exception as e:
+            self.error.emit(str(e))
+
+class GeneExtractorApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Extract Subsequences from FASTA/Q Files")
+        self.setGeometry(100, 100, 900, 700)
+        self.setMinimumSize(800, 600)
         
-        # Configure style
-        self.style = ttk.Style()
-        self.style.theme_use('clam')
-        self.configure_styles()
+        # Set up the UI
+        self.setup_ui()
+        self.apply_dark_theme()
         
-        # Create main frames
-        self.create_widgets()
+        # Worker thread
+        self.worker = None
         
-    def configure_styles(self):
-        self.root.configure(bg='#2e2e2e')
-        self.style.configure('TFrame', background='#2e2e2e')
-        self.style.configure('TLabel', background='#2e2e2e', foreground='white')
-        self.style.configure('TButton', background='#3c3f41', foreground='white')
-        self.style.configure('TEntry', fieldbackground='#3c3f41', foreground='white')
-        self.style.configure('TCombobox', fieldbackground='#3c3f41', foreground='white')
-        self.style.configure('Header.TLabel', font=('Arial', 12, 'bold'))
-        self.style.map('TButton', background=[('active', '#4e5254')])
-        
-    def create_widgets(self):
-        # Main container
-        main_frame = ttk.Frame(self.root, padding=10)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+    def setup_ui(self):
+        # Create central widget and main layout
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(20, 20, 20, 20)
         
         # Gene IDs section
-        ttk.Label(main_frame, text="Gene IDs to Extract", style='Header.TLabel').grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        gene_ids_label = QLabel("Gene IDs to Extract")
+        gene_ids_label.setFont(QFont("Arial", 12, QFont.Bold))
+        main_layout.addWidget(gene_ids_label)
         
-        self.id_text = scrolledtext.ScrolledText(main_frame, width=85, height=15, 
-                                               bg='#3c3f41', fg='white', insertbackground='white')
-        self.id_text.grid(row=1, column=0, columnspan=3, pady=(0, 10))
+        self.id_text = QTextEdit()
+        self.id_text.setMinimumHeight(200)
+        self.id_text.setPlaceholderText("Enter gene IDs, one per line...")
+        main_layout.addWidget(self.id_text)
         
         # File selection section
-        file_frame = ttk.Frame(main_frame)
-        file_frame.grid(row=2, column=0, columnspan=3, sticky=tk.EW, pady=10)
+        file_frame = QFrame()
+        file_layout = QGridLayout(file_frame)
+        file_layout.setSpacing(10)
         
-        # Input FASTA
-        ttk.Label(file_frame, text="Input FASTA File:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.fasta_entry = ttk.Entry(file_frame, width=50)
-        self.fasta_entry.grid(row=0, column=1, sticky=tk.EW, padx=5)
-        ttk.Button(file_frame, text="Browse...", command=self.browse_fasta).grid(row=0, column=2)
+        # Input FASTA file
+        file_layout.addWidget(QLabel("Input FASTA File:"), 0, 0)
+        self.fasta_entry = QLineEdit()
+        self.fasta_entry.setPlaceholderText("Select input FASTA file...")
+        file_layout.addWidget(self.fasta_entry, 0, 1)
         
-        # Output File
-        ttk.Label(file_frame, text="Output File:").grid(row=1, column=0, sticky=tk.W, padx=(0, 5), pady=(10, 0))
-        self.output_entry = ttk.Entry(file_frame, width=50)
-        self.output_entry.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=(10, 0))
-        ttk.Button(file_frame, text="Browse...", command=self.browse_output).grid(row=1, column=2, pady=(10, 0))
+        browse_fasta_btn = QPushButton("Browse...")
+        browse_fasta_btn.clicked.connect(self.browse_fasta)
+        file_layout.addWidget(browse_fasta_btn, 0, 2)
+        
+        # Output file
+        file_layout.addWidget(QLabel("Output File:"), 1, 0)
+        self.output_entry = QLineEdit()
+        self.output_entry.setPlaceholderText("Select output file location...")
+        file_layout.addWidget(self.output_entry, 1, 1)
+        
+        browse_output_btn = QPushButton("Browse...")
+        browse_output_btn.clicked.connect(self.browse_output)
+        file_layout.addWidget(browse_output_btn, 1, 2)
         
         # Line length option
-        ttk.Label(file_frame, text="Line Length:").grid(row=2, column=0, sticky=tk.W, padx=(0, 5), pady=(10, 0))
-        self.line_length = ttk.Combobox(file_frame, width=10, values=[60, 70, 80, 100, 120])
-        self.line_length.set(60)
-        self.line_length.grid(row=2, column=1, sticky=tk.W, padx=5, pady=(10, 0))
+        file_layout.addWidget(QLabel("Line Length:"), 2, 0)
+        self.line_length = QComboBox()
+        self.line_length.addItems(["60", "70", "80", "100", "120"])
+        self.line_length.setCurrentText("60")
+        self.line_length.setMaximumWidth(100)
+        file_layout.addWidget(self.line_length, 2, 1, Qt.AlignLeft)
+        
+        # Make the entry fields expand
+        file_layout.setColumnStretch(1, 1)
+        main_layout.addWidget(file_frame)
         
         # Results section
-        results_frame = ttk.Frame(main_frame)
-        results_frame.grid(row=3, column=0, columnspan=3, sticky=tk.EW, pady=10)
+        results_frame = QFrame()
+        results_layout = QVBoxLayout(results_frame)
         
-        self.results_var = tk.StringVar()
-        self.results_var.set("Ready to extract sequences")
-        ttk.Label(results_frame, textvariable=self.results_var).grid(row=0, column=0, sticky=tk.W)
+        self.results_label = QLabel("Ready to extract sequences")
+        self.results_label.setFont(QFont("Arial", 10, QFont.Bold))
+        results_layout.addWidget(self.results_label)
         
-        self.missing_ids_text = scrolledtext.ScrolledText(results_frame, width=85, height=8, 
-                                                         bg='#3c3f41', fg='white', state=tk.DISABLED)
-        self.missing_ids_text.grid(row=1, column=0, sticky=tk.EW, pady=(5, 0))
+        self.missing_ids_text = QTextEdit()
+        self.missing_ids_text.setMaximumHeight(150)
+        self.missing_ids_text.setReadOnly(True)
+        self.missing_ids_text.setPlaceholderText("Missing IDs will be displayed here...")
+        results_layout.addWidget(self.missing_ids_text)
+        
+        main_layout.addWidget(results_frame)
         
         # Action buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=4, column=0, columnspan=3, pady=10)
+        button_layout = QHBoxLayout()
         
-        ttk.Button(button_frame, text="Extract Sequences", command=self.extract_sequences).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Clear All", command=self.clear_all).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Exit", command=self.root.destroy).pack(side=tk.RIGHT, padx=5)
+        self.extract_btn = QPushButton("Extract Sequences")
+        self.extract_btn.setMinimumHeight(35)
+        self.extract_btn.clicked.connect(self.extract_sequences)
+        button_layout.addWidget(self.extract_btn)
         
-        # Configure grid weights
-        main_frame.columnconfigure(0, weight=1)
-        file_frame.columnconfigure(1, weight=1)
+        clear_btn = QPushButton("Clear All")
+        clear_btn.setMinimumHeight(35)
+        clear_btn.clicked.connect(self.clear_all)
+        button_layout.addWidget(clear_btn)
+        
+        button_layout.addStretch()
+        
+        exit_btn = QPushButton("Exit")
+        exit_btn.setMinimumHeight(35)
+        exit_btn.clicked.connect(self.close)
+        button_layout.addWidget(exit_btn)
+        
+        main_layout.addLayout(button_layout)
+        
+    def apply_dark_theme(self):
+        """Apply a dark theme to the application"""
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #2e2e2e;
+                color: white;
+            }
+            QWidget {
+                background-color: #2e2e2e;
+                color: white;
+            }
+            QLabel {
+                color: white;
+                padding: 2px;
+            }
+            QTextEdit {
+                background-color: #3c3f41;
+                color: white;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 5px;
+                selection-background-color: #5a5a5a;
+            }
+            QLineEdit {
+                background-color: #3c3f41;
+                color: white;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 5px;
+                selection-background-color: #5a5a5a;
+            }
+            QComboBox {
+                background-color: #3c3f41;
+                color: white;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 5px;
+                min-width: 80px;
+            }
+            QComboBox::drop-down {
+                border: none;
+                background-color: #555;
+                border-radius: 2px;
+            }
+            QComboBox::down-arrow {
+                border: 2px solid white;
+                border-color: transparent transparent white transparent;
+                width: 0px;
+                height: 0px;
+            }
+            QPushButton {
+                background-color: #3c3f41;
+                color: white;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #4e5254;
+                border-color: #777;
+            }
+            QPushButton:pressed {
+                background-color: #2a2a2a;
+            }
+            QPushButton:disabled {
+                background-color: #444;
+                color: #888;
+                border-color: #333;
+            }
+            QFrame {
+                background-color: #2e2e2e;
+            }
+        """)
         
     def browse_fasta(self):
-        file_path = filedialog.askopenfilename(filetypes=[("FASTA files", "*.fasta *.fa"), ("All files", "*.*")])
-        if file_path:
-            self.fasta_entry.delete(0, tk.END)
-            self.fasta_entry.insert(0, file_path)
-            
-    def browse_output(self):
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".fasta",
-            filetypes=[("FASTA files", "*.fasta"), ("All files", "*.*")]
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, 
+            "Select Input FASTA File", 
+            "", 
+            "FASTA files (*.fasta *.fa);;All files (*.*)"
         )
         if file_path:
-            self.output_entry.delete(0, tk.END)
-            self.output_entry.insert(0, file_path)
+            self.fasta_entry.setText(file_path)
             
-    def read_fasta_file(self, file_path):
-        try:
-            return {record.id: str(record.seq) for record in SeqIO.parse(file_path, "fasta")}
-        except Exception as e:
-            messagebox.showerror("Error", f"Error reading FASTA file:\n{str(e)}")
-            return {}
-            
-    def extract_genes_from_fasta(self, gene_ids, fasta_file):
-        fasta_sequences = self.read_fasta_file(fasta_file)
-        return {gene_id: fasta_sequences[gene_id] for gene_id in gene_ids if gene_id in fasta_sequences}
-            
-    def write_extracted_sequences_to_file(self, extracted_sequences, output_file, line_length=60):
-        try:
-            with open(output_file, 'w') as out_file:
-                for gene_id, sequence in extracted_sequences.items():
-                    out_file.write(f'>{gene_id}\n')
-                    for i in range(0, len(sequence), line_length):
-                        out_file.write(sequence[i:i+line_length] + '\n')
-            return True
-        except Exception as e:
-            messagebox.showerror("Error", f"Error writing output file:\n{str(e)}")
-            return False
+    def browse_output(self):
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Save Output File", 
+            "", 
+            "FASTA files (*.fasta);;All files (*.*)"
+        )
+        if file_path:
+            self.output_entry.setText(file_path)
             
     def extract_sequences(self):
         # Get input values
-        gene_ids = {line.strip() for line in self.id_text.get("1.0", tk.END).splitlines() if line.strip()}
-        fasta_file = self.fasta_entry.get()
-        output_file = self.output_entry.get()
+        gene_ids_text = self.id_text.toPlainText().strip()
+        gene_ids = {line.strip() for line in gene_ids_text.splitlines() if line.strip()}
+        fasta_file = self.fasta_entry.text().strip()
+        output_file = self.output_entry.text().strip()
         
         # Validate inputs
         if not gene_ids:
-            messagebox.showwarning("Input Error", "Please enter at least one Gene ID")
+            QMessageBox.warning(self, "Input Error", "Please enter at least one Gene ID")
             return
         if not fasta_file:
-            messagebox.showwarning("Input Error", "Please select an input FASTA file")
+            QMessageBox.warning(self, "Input Error", "Please select an input FASTA file")
             return
         if not output_file:
-            messagebox.showwarning("Input Error", "Please specify an output file")
+            QMessageBox.warning(self, "Input Error", "Please specify an output file")
             return
         
         try:
-            line_length = int(self.line_length.get())
+            line_length = int(self.line_length.currentText())
         except ValueError:
-            messagebox.showwarning("Input Error", "Line length must be an integer")
+            QMessageBox.warning(self, "Input Error", "Line length must be an integer")
             return
             
-        # Perform extraction
-        extracted_genes = self.extract_genes_from_fasta(gene_ids, fasta_file)
+        # Disable extract button during processing
+        self.extract_btn.setEnabled(False)
+        self.extract_btn.setText("Extracting...")
+        self.results_label.setText("Processing...")
+        
+        # Start worker thread
+        self.worker = ExtractionWorker(gene_ids, fasta_file, output_file, line_length)
+        self.worker.finished.connect(self.on_extraction_finished)
+        self.worker.error.connect(self.on_extraction_error)
+        self.worker.start()
+        
+    def on_extraction_finished(self, extracted_genes, missing, total_requested, extracted_count):
+        # Re-enable extract button
+        self.extract_btn.setEnabled(True)
+        self.extract_btn.setText("Extract Sequences")
         
         if not extracted_genes:
-            messagebox.showinfo("No Results", "No matching sequences found")
+            QMessageBox.information(self, "No Results", "No matching sequences found")
+            self.results_label.setText("Ready to extract sequences")
             return
             
-        # Write results
-        if self.write_extracted_sequences_to_file(extracted_genes, output_file, line_length):
-            # Show results
-            total_requested = len(gene_ids)
-            extracted_count = len(extracted_genes)
-            missing = gene_ids - extracted_genes.keys()
-            
-            self.results_var.set(
-                f"Extraction complete! Requested: {total_requested}, "
-                f"Extracted: {extracted_count}, Missing: {len(missing)}"
-            )
-            
-            # Display missing IDs
-            self.missing_ids_text.config(state=tk.NORMAL)
-            self.missing_ids_text.delete(1.0, tk.END)
-            if missing:
-                self.missing_ids_text.insert(tk.END, "Missing IDs:\n" + "\n".join(sorted(missing)))
-            else:
-                self.missing_ids_text.insert(tk.END, "All requested IDs were found and extracted.")
-            self.missing_ids_text.config(state=tk.DISABLED)
-            
-            messagebox.showinfo("Success", f"Successfully extracted {extracted_count} sequences to:\n{output_file}")
-            
+        # Show results
+        self.results_label.setText(
+            f"Extraction complete! Requested: {total_requested}, "
+            f"Extracted: {extracted_count}, Missing: {len(missing)}"
+        )
+        
+        # Display missing IDs
+        if missing:
+            missing_text = "Missing IDs:\n" + "\n".join(sorted(missing))
+        else:
+            missing_text = "All requested IDs were found and extracted."
+        self.missing_ids_text.setPlainText(missing_text)
+        
+        QMessageBox.information(
+            self, 
+            "Success", 
+            f"Successfully extracted {extracted_count} sequences to:\n{self.output_entry.text()}"
+        )
+        
+    def on_extraction_error(self, error_message):
+        # Re-enable extract button
+        self.extract_btn.setEnabled(True)
+        self.extract_btn.setText("Extract Sequences")
+        self.results_label.setText("Ready to extract sequences")
+        
+        QMessageBox.critical(self, "Error", f"Error during extraction:\n{error_message}")
+        
     def clear_all(self):
-        self.id_text.delete(1.0, tk.END)
-        self.fasta_entry.delete(0, tk.END)
-        self.output_entry.delete(0, tk.END)
-        self.line_length.set(60)
-        self.results_var.set("Ready to extract sequences")
-        self.missing_ids_text.config(state=tk.NORMAL)
-        self.missing_ids_text.delete(1.0, tk.END)
-        self.missing_ids_text.config(state=tk.DISABLED)
+        self.id_text.clear()
+        self.fasta_entry.clear()
+        self.output_entry.clear()
+        self.line_length.setCurrentText("60")
+        self.results_label.setText("Ready to extract sequences")
+        self.missing_ids_text.clear()
+
+def main():
+    app = QApplication(sys.argv)
+    
+    # Set application properties
+    app.setApplicationName("Gene Extractor")
+    app.setApplicationVersion("2.0")
+    app.setOrganizationName("Bioinformatics Tools")
+    
+    window = GeneExtractorApp()
+    window.show()
+    
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = GeneExtractorApp(root)
-    root.mainloop()
+    main()
