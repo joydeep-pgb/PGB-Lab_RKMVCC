@@ -1,3 +1,5 @@
+## For Ubuntu/Debian-based systems, run: sudo apt install libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
+
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QLineEdit, QPushButton,
     QTextEdit, QVBoxLayout, QHBoxLayout, QFileDialog, QComboBox,
