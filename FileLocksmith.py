@@ -1,86 +1,72 @@
+## For Ubuntu/Debian-based systems, run: sudo apt install libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
+
+import sys
 import os
 import re
 import subprocess
-import tkinter as tk
-from tkinter import messagebox
-import tkinter.font as tkFont
-from ttkbootstrap import Style
-from ttkbootstrap.widgets import Frame, Label, Combobox, Button, Treeview, Scrollbar
+from PySide6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
+    QTreeWidget, QTreeWidgetItem, QHeaderView, QMessageBox
+)
+from PySide6.QtCore import Qt
 
-## pip install ttkbootstrap
-## sudo apt install policykit-1-gnome
-## sudo apt install polkit-kde-agent-1
 
-class DriveProcessViewer:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Drive Process Manager")
-        self.root.geometry("840x600")
-
-        self.style = Style("darkly")  # Options: flatly, darkly, etc.
-        self.root.configure(bg=self.style.colors.bg)
-
-        # Set default font to Arial
-        default_font = tkFont.nametofont("TkDefaultFont")
-        default_font.configure(family="Arial", size=10)
-        self.root.option_add("*Font", default_font)
-
-        # Layout
-        top = Frame(root, padding=10)
-        top.pack(fill=tk.X)
-
-        middle = Frame(root, padding=10)
-        middle.pack(fill=tk.BOTH, expand=True)
-
-        bottom = Frame(root, padding=10)
-        bottom.pack(fill=tk.X)
-
-        Label(top, text="Select Drive:", font=("Arial", 11, "bold")).pack(side=tk.LEFT, padx=(0, 10))
-
-        self.drive_var = tk.StringVar()
-        self.drive_combo = Combobox(top, textvariable=self.drive_var, width=60)
-        self.drive_combo.pack(side=tk.LEFT, padx=(0, 10))
-
-        Button(top, text="↻ Refresh Drives", command=self.populate_drives).pack(side=tk.LEFT, padx=5)
-        Button(top, text="Scan Processes", bootstyle="primary", command=self.scan_processes).pack(side=tk.LEFT, padx=5)
-
-        # Treeview
-        tree_frame = Frame(middle)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
-
-        self.tree = Treeview(tree_frame, columns=("PID", "User", "Access", "Command"), show="headings", bootstyle="info")
-        for col in self.tree["columns"]:
-            self.tree.heading(col, text=col)
-        self.tree.column("PID", width=80)
-        self.tree.column("User", width=120)
-        self.tree.column("Access", width=100)
-        self.tree.column("Command", width=500)
-
-        vsb = Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        hsb = Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
-
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        vsb.pack(side=tk.RIGHT, fill=tk.Y)
-        hsb.pack(side=tk.BOTTOM, fill=tk.X)
-
-        # Status & Buttons
-        self.status_var = tk.StringVar()
-        Label(bottom, textvariable=self.status_var, anchor=tk.W, bootstyle="secondary").pack(fill=tk.X, side=tk.LEFT)
-
-        self.kill_btn = Button(bottom, text="Kill Selected Process", command=self.kill_selected_process, state=tk.DISABLED)
-        self.kill_btn.pack(side=tk.RIGHT, padx=5)
-
-        self.unmount_btn = Button(bottom, text="Unmount Drive", command=self.unmount_drive, state=tk.DISABLED, bootstyle="danger")
-        self.unmount_btn.pack(side=tk.RIGHT, padx=5)
-
-        self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
-
+class DriveProcessViewer(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Drive Process Manager")
+        self.setGeometry(100, 100, 840, 600)
+        self.setup_ui()
         self.populate_drives()
-        self.update_status("Ready")
+
+    def setup_ui(self):
+        main_layout = QVBoxLayout(self)
+
+        # Top Layout
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(QLabel("Select Drive:"))
+
+        self.drive_combo = QComboBox()
+        top_layout.addWidget(self.drive_combo)
+
+        refresh_button = QPushButton("↻ Refresh Drives")
+        refresh_button.clicked.connect(self.populate_drives)
+        top_layout.addWidget(refresh_button)
+
+        scan_button = QPushButton("Scan Processes")
+        scan_button.clicked.connect(self.scan_processes)
+        top_layout.addWidget(scan_button)
+
+        main_layout.addLayout(top_layout)
+
+        # TreeView Layout
+        self.tree = QTreeWidget()
+        self.tree.setColumnCount(4)
+        self.tree.setHeaderLabels(["PID", "User", "Access", "Command"])
+        self.tree.header().setSectionResizeMode(QHeaderView.Stretch)
+        self.tree.itemSelectionChanged.connect(self.on_tree_select)
+        main_layout.addWidget(self.tree)
+
+        # Bottom Layout
+        bottom_layout = QHBoxLayout()
+
+        self.status_label = QLabel("Ready")
+        bottom_layout.addWidget(self.status_label)
+
+        self.kill_btn = QPushButton("Kill Selected Process")
+        self.kill_btn.setEnabled(False)
+        self.kill_btn.clicked.connect(self.kill_selected_process)
+        bottom_layout.addWidget(self.kill_btn)
+
+        self.unmount_btn = QPushButton("Unmount Drive")
+        self.unmount_btn.setEnabled(False)
+        self.unmount_btn.clicked.connect(self.unmount_drive)
+        bottom_layout.addWidget(self.unmount_btn)
+
+        main_layout.addLayout(bottom_layout)
 
     def run_as_root(self, command):
-        """Run sensitive commands using pkexec or fallback to sudo"""
+        """Run commands as root using pkexec or fallback to sudo."""
         try:
             return subprocess.run(["pkexec"] + command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         except Exception:
@@ -90,9 +76,9 @@ class DriveProcessViewer:
         try:
             result = subprocess.run(["df", "-h", "--output=target"], stdout=subprocess.PIPE, text=True, check=True)
             drives = [line.strip() for line in result.stdout.splitlines()[1:] if line.startswith("/media/") or line.startswith("/mnt/")]
-            self.drive_combo["values"] = drives
+            self.drive_combo.clear()
+            self.drive_combo.addItems(drives)
             if drives:
-                self.drive_var.set(drives[0])
                 self.update_status(f"Detected {len(drives)} mounted drives")
             else:
                 self.update_status("No external drives detected")
@@ -100,11 +86,12 @@ class DriveProcessViewer:
             self.update_status(f"Drive error: {e}")
 
     def scan_processes(self):
-        drive = self.drive_var.get()
+        drive = self.drive_combo.currentText()
         if not drive:
-            messagebox.showwarning("No Drive", "Select a drive first")
+            QMessageBox.warning(self, "No Drive", "Select a drive first")
             return
-        self.tree.delete(*self.tree.get_children())
+
+        self.tree.clear()
         self.update_status(f"Scanning {drive}...")
 
         try:
@@ -121,53 +108,52 @@ class DriveProcessViewer:
                     user = parts[0]
                     access = parts[2]
                     command = parts[3]
-                    self.tree.insert("", "end", values=(pid, user, access, command))
+                    item = QTreeWidgetItem([pid, user, access, command])
+                    self.tree.addTopLevelItem(item)
 
-            self.update_status(f"{len(self.tree.get_children())} process(es) found")
-            self.unmount_btn["state"] = tk.NORMAL
+            self.update_status(f"{self.tree.topLevelItemCount()} process(es) found")
+            self.unmount_btn.setEnabled(True)
 
         except subprocess.CalledProcessError as e:
             self.update_status(f"Error: {e.stderr.strip()}")
 
-    def on_tree_select(self, event):
-        if self.tree.selection():
-            self.kill_btn["state"] = tk.NORMAL
-        else:
-            self.kill_btn["state"] = tk.DISABLED
+    def on_tree_select(self):
+        self.kill_btn.setEnabled(len(self.tree.selectedItems()) > 0)
 
     def kill_selected_process(self):
-        selected = self.tree.selection()
+        selected = self.tree.selectedItems()
         if not selected:
             return
-        item = self.tree.item(selected[0])
-        pid = str(item["values"][0])
-        if messagebox.askyesno("Confirm Kill", f"Kill process {pid}?"):
+        pid = selected[0].text(0)
+        reply = QMessageBox.question(self, "Confirm Kill", f"Kill process {pid}?", QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
             try:
                 self.run_as_root(["kill", "-9", pid])
-                self.tree.delete(selected[0])
+                index = self.tree.indexOfTopLevelItem(selected[0])
+                self.tree.takeTopLevelItem(index)
                 self.update_status(f"Process {pid} terminated")
-                self.kill_btn["state"] = tk.DISABLED
+                self.kill_btn.setEnabled(False)
             except subprocess.CalledProcessError:
                 self.update_status(f"Failed to kill process {pid}")
 
     def unmount_drive(self):
-        drive = self.drive_var.get()
+        drive = self.drive_combo.currentText()
         if not drive:
             return
         try:
             self.run_as_root(["umount", drive])
             self.update_status(f"Unmounted {drive}")
             self.populate_drives()
-            self.unmount_btn["state"] = tk.DISABLED
+            self.unmount_btn.setEnabled(False)
         except subprocess.CalledProcessError as e:
             self.update_status(f"Unmount failed: {e.stderr.strip()}")
 
     def update_status(self, message):
-        self.status_var.set(message)
-        self.root.update_idletasks()
+        self.status_label.setText(message)
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = DriveProcessViewer(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+    viewer = DriveProcessViewer()
+    viewer.show()
+    sys.exit(app.exec())
