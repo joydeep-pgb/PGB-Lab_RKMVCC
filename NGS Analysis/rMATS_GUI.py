@@ -4,10 +4,10 @@ import subprocess
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QGroupBox, QSpinBox, QCheckBox,
-    QFileDialog, QTextEdit, QComboBox, QProgressBar
+    QFileDialog, QTextEdit, QComboBox, QProgressBar, QMessageBox
 )
-from PySide6.QtCore import QProcess, Qt
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtCore import QProcess, Qt, QTimer
+from PySide6.QtGui import QColor, QPalette, QTextCursor
 
 class rMATSGUI(QMainWindow):
     def __init__(self):
@@ -116,7 +116,7 @@ class rMATSGUI(QMainWindow):
         options_layout.addWidget(self.var_read_check)
 
         self.statoff_check = QCheckBox("Disable Statistical Analysis (--statoff)")
-        self.statoff_check.setChecked(False)  # Disabled by default
+        self.statoff_check.setChecked(False)
         self.statoff_check.stateChanged.connect(self.toggle_b2_requirement)
         options_layout.addWidget(self.statoff_check)
 
@@ -124,6 +124,10 @@ class rMATSGUI(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         main_layout.addWidget(self.progress_bar)
+        
+        # Status label
+        self.status_label = QLabel("Ready")
+        main_layout.addWidget(self.status_label)
 
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
@@ -134,6 +138,11 @@ class rMATSGUI(QMainWindow):
         self.run_button.clicked.connect(self.run_analysis)
         main_layout.addWidget(self.run_button)
 
+        # Debug Button
+        self.debug_button = QPushButton("Debug Information")
+        self.debug_button.clicked.connect(self.show_debug_info)
+        main_layout.addWidget(self.debug_button)
+
         # Add groups to main layout
         main_layout.addWidget(input_group)
         main_layout.addWidget(options_group)
@@ -142,8 +151,14 @@ class rMATSGUI(QMainWindow):
         self.process = QProcess()
         self.process.readyReadStandardOutput.connect(self.handle_stdout)
         self.process.readyReadStandardError.connect(self.handle_stderr)
+        self.process.started.connect(self.process_started)
         self.process.finished.connect(self.analysis_finished)
+        self.process.errorOccurred.connect(self.process_error)
 
+        # Timer for process monitoring
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.monitor_process)
+        
         # Initial UI update
         self.toggle_b2_requirement()
 
@@ -151,13 +166,11 @@ class rMATSGUI(QMainWindow):
         """Update UI based on statoff selection"""
         if self.statoff_check.isChecked():
             self.b2_label.setText("Batch 2 File (optional):")
-            # Make background lighter to indicate optional
             pal = self.b2_edit.palette()
             pal.setColor(QPalette.Base, QColor(240, 240, 240))
             self.b2_edit.setPalette(pal)
         else:
             self.b2_label.setText("Batch 2 File*:")
-            # Reset to default background
             self.b2_edit.setPalette(QApplication.palette())
 
     def browse_file(self, line_edit):
@@ -176,6 +189,11 @@ class rMATSGUI(QMainWindow):
             self.temp_edit.setText(dir_path)
 
     def run_analysis(self):
+        # Reset UI
+        self.output_text.clear()
+        self.status_label.setText("Starting...")
+        self.progress_bar.setValue(0)
+        
         # Validate required inputs
         required_fields = [
             ("Batch 1", self.b1_edit.text()),
@@ -191,7 +209,9 @@ class rMATSGUI(QMainWindow):
         # Check for empty required fields
         errors = [name for name, value in required_fields if not value.strip()]
         if errors:
-            self.output_text.append(f"ERROR: Missing required fields: {', '.join(errors)}")
+            error_msg = f"ERROR: Missing required fields: {', '.join(errors)}"
+            self.output_text.append(f"<font color='red'>{error_msg}</font>")
+            self.status_label.setText(error_msg)
             return
 
         # Build command
@@ -206,7 +226,7 @@ class rMATSGUI(QMainWindow):
             "--tmp", self.temp_edit.text().strip()
         ]
 
-        # Add Batch 2 only if provided or required
+        # Conditionally add Batch 2
         if self.b2_edit.text().strip() or not self.statoff_check.isChecked():
             cmd.extend(["--b2", self.b2_edit.text().strip()])
 
@@ -218,26 +238,144 @@ class rMATSGUI(QMainWindow):
 
         # Display command
         self.output_text.append("Running command:\n" + " ".join(cmd))
+        self.output_text.append("\nChecking rMATS installation...")
+        self.status_label.setText("Checking rMATS installation")
+        
+        # Check if rMATS is installed
+        try:
+            # Check rMATS version to verify installation
+            result = subprocess.run(["rmats.py", "--version"], capture_output=True, text=True)
+            if "rMATS" in result.stdout:
+                self.output_text.append(f"rMATS version detected: {result.stdout.strip()}")
+                self.status_label.setText("rMATS found, starting analysis")
+            else:
+                self.output_text.append(f"<font color='red'>rMATS not found: {result.stderr}</font>")
+                self.status_label.setText("rMATS not found")
+                return
+        except Exception as e:
+            self.output_text.append(f"<font color='red'>Error checking rMATS: {str(e)}</font>")
+            self.status_label.setText("rMATS check failed")
+            return
+
+        # Show process starting
         self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # Indeterminate progress
         self.run_button.setEnabled(False)
+        self.status_label.setText("Starting process...")
 
         # Start process
-        self.process.start(" ".join(cmd))
+        try:
+            # Start process monitoring
+            self.timer.start(1000)  # Check every second
+            
+            # Start the actual process
+            self.process.start(" ".join(cmd))
+        except Exception as e:
+            self.output_text.append(f"<font color='red'>Failed to start process: {str(e)}</font>")
+            self.status_label.setText(f"Start failed: {str(e)}")
+            self.run_button.setEnabled(True)
+            self.progress_bar.setVisible(False)
+
+    def process_started(self):
+        """Called when process successfully starts"""
+        self.status_label.setText("Analysis running...")
+        self.output_text.append("\nProcess started successfully")
+        self.output_text.append("Waiting for output...\n")
+        self.output_text.moveCursor(QTextCursor.End)
+
+    def process_error(self, error):
+        """Handle process errors"""
+        error_types = {
+            QProcess.FailedToStart: "Process failed to start",
+            QProcess.Crashed: "Process crashed",
+            QProcess.Timedout: "Process timed out",
+            QProcess.WriteError: "Write error",
+            QProcess.ReadError: "Read error",
+            QProcess.UnknownError: "Unknown error"
+        }
+        error_msg = error_types.get(error, f"Error code: {error}")
+        self.output_text.append(f"<font color='red'>PROCESS ERROR: {error_msg}</font>")
+        self.status_label.setText(f"Error: {error_msg}")
+        self.run_button.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        self.timer.stop()
+
+    def monitor_process(self):
+        """Monitor process state"""
+        state = self.process.state()
+        state_names = {
+            QProcess.NotRunning: "Not running",
+            QProcess.Starting: "Starting...",
+            QProcess.Running: "Running"
+        }
+        self.status_label.setText(f"Status: {state_names.get(state, 'Unknown')}")
+        
+        # If process has finished but our finished handler didn't trigger
+        if state == QProcess.NotRunning and self.process.exitStatus() == QProcess.CrashExit:
+            self.output_text.append("<font color='red'>Process crashed unexpectedly</font>")
+            self.status_label.setText("Process crashed")
+            self.run_button.setEnabled(True)
+            self.progress_bar.setVisible(False)
+            self.timer.stop()
 
     def handle_stdout(self):
         data = self.process.readAllStandardOutput()
         if data:
-            self.output_text.append(data.data().decode().strip())
+            text = data.data().decode().strip()
+            self.output_text.append(text)
+            self.output_text.moveCursor(QTextCursor.End)
 
     def handle_stderr(self):
         data = self.process.readAllStandardError()
         if data:
-            self.output_text.append(f"<font color='red'>{data.data().decode().strip()}</font>")
+            text = data.data().decode().strip()
+            self.output_text.append(f"<font color='red'>{text}</font>")
+            self.output_text.moveCursor(QTextCursor.End)
 
-    def analysis_finished(self):
+    def analysis_finished(self, exit_code, exit_status):
+        self.timer.stop()
         self.progress_bar.setVisible(False)
         self.run_button.setEnabled(True)
-        self.output_text.append("\nAnalysis completed!")
+        
+        if exit_status == QProcess.NormalExit and exit_code == 0:
+            self.output_text.append("\nAnalysis completed successfully!")
+            self.status_label.setText("Analysis completed")
+        else:
+            self.output_text.append(f"\n<font color='red'>Analysis failed with exit code {exit_code}</font>")
+            self.status_label.setText(f"Failed with code {exit_code}")
+            
+            # Try to capture any final error messages
+            error_data = self.process.readAllStandardError()
+            if error_data:
+                error_text = error_data.data().decode().strip()
+                if error_text:
+                    self.output_text.append(f"<font color='red'>Final error: {error_text}</font>")
+
+    def show_debug_info(self):
+        """Show diagnostic information"""
+        info = [
+            f"Python version: {sys.version}",
+            f"Platform: {sys.platform}",
+            f"Working directory: {os.getcwd()}",
+            f"PATH environment: {os.getenv('PATH', 'Not set')}"
+        ]
+        
+        # Check rMATS availability
+        try:
+            result = subprocess.run(["which", "rmats.py"], capture_output=True, text=True)
+            if result.returncode == 0:
+                info.append(f"rMATS path: {result.stdout.strip()}")
+            else:
+                info.append("rMATS not found in PATH")
+        except Exception as e:
+            info.append(f"rMATS check error: {str(e)}")
+            
+        # Show dialog with debug info
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Debug Information")
+        msg.setText("\n".join(info))
+        msg.setIcon(QMessageBox.Information)
+        msg.exec()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
