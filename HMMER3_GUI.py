@@ -8,10 +8,11 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTextEdit, QGroupBox,
     QFileDialog, QDoubleSpinBox, QSpinBox, QCheckBox, QStatusBar,
-    QTabWidget, QProgressBar, QMessageBox, QSplitter, QFrame
+    QTabWidget, QProgressBar, QMessageBox, QSplitter, QFrame,
+    QMenuBar
 )
 from PySide6.QtCore import Qt, QThread, Signal, QObject, QRegularExpression
-from PySide6.QtGui import QFont, QTextCursor, QPalette, QColor, QRegularExpressionValidator, QIcon
+from PySide6.QtGui import QFont, QTextCursor, QPalette, QColor, QRegularExpressionValidator, QIcon, QKeySequence, QAction, QActionGroup
 
 # ====================== WORKER THREAD ======================
 class HmmerWorker(QObject):
@@ -270,6 +271,9 @@ class HmmerGUI(QMainWindow):
         self.setWindowTitle("HMMER Scanner")
         self.setGeometry(100, 100, 1000, 750)
         
+        # Create menu bar
+        self.create_menu_bar()
+        
         # Central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -463,6 +467,215 @@ class HmmerGUI(QMainWindow):
         # Worker thread
         self.worker_thread = None
         self.worker = None
+        
+        # Set default theme
+        self.set_dark_theme()
+
+    def create_menu_bar(self):
+        # Create menu bar
+        menu_bar = QMenuBar()
+        self.setMenuBar(menu_bar)
+        
+        # File menu
+        file_menu = menu_bar.addMenu("&File")
+        
+        # New Project
+        new_action = QAction("&New Project", self)
+        new_action.setShortcut(QKeySequence.New)
+        new_action.triggered.connect(self.new_project)
+        file_menu.addAction(new_action)
+        
+        # Open Project
+        open_action = QAction("&Open Project...", self)
+        open_action.setShortcut(QKeySequence.Open)
+        open_action.triggered.connect(self.open_project)
+        file_menu.addAction(open_action)
+        
+        # Save Project
+        save_action = QAction("&Save Project", self)
+        save_action.setShortcut(QKeySequence.Save)
+        save_action.triggered.connect(self.save_project)
+        file_menu.addAction(save_action)
+        
+        file_menu.addSeparator()
+        
+        # Exit
+        exit_action = QAction("E&xit", self)
+        exit_action.setShortcut(QKeySequence.Quit)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # Edit menu
+        edit_menu = menu_bar.addMenu("&Edit")
+        
+        # Copy
+        copy_action = QAction("&Copy", self)
+        copy_action.setShortcut(QKeySequence.Copy)
+        copy_action.triggered.connect(self.copy_text)
+        edit_menu.addAction(copy_action)
+        
+        # Clear
+        clear_action = QAction("C&lear Console", self)
+        clear_action.triggered.connect(self.clear_console)
+        edit_menu.addAction(clear_action)
+        
+        # View menu
+        view_menu = menu_bar.addMenu("&View")
+        
+        # Theme submenu
+        theme_menu = view_menu.addMenu("&Theme")
+        
+        # Create theme action group
+        self.theme_group = QActionGroup(self)
+        self.theme_group.setExclusive(True)
+        
+        # Dark theme
+        dark_theme_action = QAction("&Dark Theme", self)
+        dark_theme_action.setCheckable(True)
+        dark_theme_action.setChecked(True)
+        dark_theme_action.triggered.connect(lambda: self.set_dark_theme())
+        theme_menu.addAction(dark_theme_action)
+        self.theme_group.addAction(dark_theme_action)
+        
+        # Light theme
+        light_theme_action = QAction("&Light Theme", self)
+        light_theme_action.setCheckable(True)
+        light_theme_action.triggered.connect(lambda: self.set_light_theme())
+        theme_menu.addAction(light_theme_action)
+        self.theme_group.addAction(light_theme_action)
+        
+        # Help menu
+        help_menu = menu_bar.addMenu("&Help")
+        
+        # Documentation
+        docs_action = QAction("&Documentation", self)
+        docs_action.triggered.connect(self.show_documentation)
+        help_menu.addAction(docs_action)
+        
+        # About
+        about_action = QAction("&About", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+
+    def set_dark_theme(self):
+        dark_palette = QPalette()
+        dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.WindowText, Qt.white)
+        dark_palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
+        dark_palette.setColor(QPalette.ToolTipText, Qt.white)
+        dark_palette.setColor(QPalette.Text, Qt.white)
+        dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        dark_palette.setColor(QPalette.ButtonText, Qt.white)
+        dark_palette.setColor(QPalette.BrightText, Qt.red)
+        dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
+        dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+        dark_palette.setColor(QPalette.HighlightedText, Qt.black)
+        
+        QApplication.instance().setPalette(dark_palette)
+        
+        # Additional styling
+        self.setStyleSheet("""
+            QGroupBox {
+                border: 1px solid #444;
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 15px;
+                font-weight: bold;
+                background-color: #333;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 5px;
+                left: 10px;
+                color: #eee;
+            }
+            QLabel {
+                color: #ddd;
+            }
+            QLineEdit, QSpinBox, QDoubleSpinBox {
+                background-color: #333;
+                color: #fff;
+                border: 1px solid #555;
+                border-radius: 3px;
+                padding: 3px;
+            }
+            QTextEdit {
+                background-color: #252525;
+                color: #ddd;
+            }
+            QTabWidget::pane {
+                border: 1px solid #444;
+                background: #333;
+            }
+            QTabBar::tab {
+                background: #444;
+                color: #ddd;
+                padding: 8px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background: #555;
+                color: white;
+            }
+        """)
+        self.status_bar.showMessage("Dark theme activated")
+
+    def set_light_theme(self):
+        light_palette = QApplication.style().standardPalette()
+        QApplication.instance().setPalette(light_palette)
+        
+        # Additional styling
+        self.setStyleSheet("""
+            QGroupBox {
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 15px;
+                font-weight: bold;
+                background-color: #f9f9f9;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 5px;
+                left: 10px;
+                color: #333;
+            }
+            QLabel {
+                color: #333;
+            }
+            QLineEdit, QSpinBox, QDoubleSpinBox {
+                background-color: white;
+                color: #000;
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                padding: 3px;
+            }
+            QTextEdit {
+                background-color: white;
+                color: #000;
+            }
+            QTabWidget::pane {
+                border: 1px solid #ccc;
+                background: #f0f0f0;
+            }
+            QTabBar::tab {
+                background: #e0e0e0;
+                color: #333;
+                padding: 8px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background: #f9f9f9;
+                color: #000;
+            }
+        """)
+        self.status_bar.showMessage("Light theme activated")
 
     def browse_hmm(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -612,27 +825,65 @@ class HmmerGUI(QMainWindow):
         
         self.status_bar.showMessage(f"Error: {message}")
         QMessageBox.critical(self, "Error", f"HMMER scan failed:\n\n{message}")
+    
+    # Menu actions
+    def new_project(self):
+        # Reset all fields to default
+        self.hmm_input.clear()
+        self.fasta_input.clear()
+        self.output_dir_input.setText(os.getcwd())
+        self.output_input.setText("hmmscan_results")
+        self.evalue_widget.set_value(1e-10)
+        self.dom_evalue_widget.set_value(1e-10)
+        self.cpu_spin.setValue(4)
+        self.extra_input.setText("--notextw")
+        self.output_console.clear()
+        self.status_bar.showMessage("New project created")
+        
+    def open_project(self):
+        # Placeholder for actual implementation
+        QMessageBox.information(self, "Open Project", "Project opening functionality would be implemented here")
+        
+    def save_project(self):
+        # Placeholder for actual implementation
+        QMessageBox.information(self, "Save Project", "Project saving functionality would be implemented here")
+        
+    def copy_text(self):
+        if self.output_console.hasFocus():
+            self.output_console.copy()
+        else:
+            # Copy from other focused widgets
+            focused = QApplication.focusWidget()
+            if isinstance(focused, QLineEdit):
+                focused.copy()
+                
+    def clear_console(self):
+        self.output_console.clear()
+        self.status_bar.showMessage("Console cleared")
+        
+    def show_documentation(self):
+        QMessageBox.information(self, "Documentation", 
+            "HMMER Scanner Documentation\n\n"
+            "1. Select HMM profile and FASTA file\n"
+            "2. Configure output settings and thresholds\n"
+            "3. Click 'Run HMMER Scan' to start analysis\n"
+            "4. View results in the Output tab\n\n"
+            "For more information, visit the HMMER documentation: "
+            "http://hmmer.org/documentation.html")
+        
+    def show_about(self):
+        QMessageBox.about(self, "About HMMER Scanner",
+            "HMMER Scanner\nVersion 1.0\n\n"
+            "A graphical interface for running HMMER protein sequence analysis.\n\n"
+            "Developed using PySide6 and HMMER tools.\n\n"
+            "© 2023 BioInformatics Tools")
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     
-    # Set dark theme
-    dark_palette = QPalette()
-    dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
-    dark_palette.setColor(QPalette.WindowText, Qt.white)
-    dark_palette.setColor(QPalette.Base, QColor(25, 25, 25))
-    dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-    dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
-    dark_palette.setColor(QPalette.ToolTipText, Qt.white)
-    dark_palette.setColor(QPalette.Text, Qt.white)
-    dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
-    dark_palette.setColor(QPalette.ButtonText, Qt.white)
-    dark_palette.setColor(QPalette.BrightText, Qt.red)
-    dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
-    dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-    dark_palette.setColor(QPalette.HighlightedText, Qt.black)
-    app.setPalette(dark_palette)
+    # Set application style
+    app.setStyle("Fusion")
     
     window = HmmerGUI()
     window.show()
