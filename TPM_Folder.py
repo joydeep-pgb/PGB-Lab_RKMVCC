@@ -1,4 +1,3 @@
-import sys
 import re
 import os
 
@@ -20,7 +19,7 @@ def process_gtf(file_path):
                     fields = line.strip().split('\t')
                     attributes = fields[8]
                     try:
-                        transcript_id = re.search(r'transcript_id "([^"]*)"', attributes).group(1)
+                        transcript_id = re.search(r'gene_id "([^"]*)"', attributes).group(1)
                         TPM_value = re.search(r'TPM "([^"]*)"', attributes).group(1)
                         result.append((transcript_id, TPM_value))
                     except AttributeError:
@@ -48,18 +47,24 @@ def extract_from_folder(folder_path, output_folder):
             data = process_gtf(gtf_file)
             try:
                 with open(output_file, 'w') as out_file:
-                    out_file.write(f"transcript_id\t{filename[:-4]}\n")  # Header changed to the file name
+                    out_file.write(f"gene_id\t{filename[:-4]}\n")  # Header changed to the file name
                     for row in data:
                         out_file.write(f"{row[0]}\t{row[1]}\n")
             except Exception as e:
                 print(f"An error occurred while writing to file {output_file}: {e}")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python script.py gtf_folder output_folder")
-        sys.exit(1)
+    # Set your input and output folder paths here
+    gtf_folder = "F:\\ABC Transporters\\Phaseolus_NEW_DEG\\NEW_SRA\\Drought_Leaf\\Assembled"  # Change this to your GTF files directory
+    output_folder = "F:\\ABC Transporters\\Phaseolus_NEW_DEG\\NEW_SRA\\Drought_Leaf\\Assembled\\TPM"  # Change this to your desired output directory
 
-    gtf_folder = sys.argv[1]
-    output_folder = sys.argv[2]
-
+    # Check if the input folder exists
+    if not os.path.exists(gtf_folder):
+        print(f"Input folder does not exist: {gtf_folder}")
+        exit(1)
+    
+    print(f"Processing GTF files from: {gtf_folder}")
+    print(f"Output will be saved to: {output_folder}")
+    
     extract_from_folder(gtf_folder, output_folder)
+    print("Processing complete!")
