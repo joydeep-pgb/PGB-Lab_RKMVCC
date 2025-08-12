@@ -55,8 +55,8 @@ def extract_from_folder(folder_path, output_folder):
 
 if __name__ == "__main__":
     # Set your input and output folder paths here
-    gtf_folder = "F:\\ABC Transporters\\Phaseolus_NEW_DEG\\NEW_SRA\\Drought_Leaf\\Assembled"  # Change this to your GTF files directory
-    output_folder = "F:\\ABC Transporters\\Phaseolus_NEW_DEG\\NEW_SRA\\Drought_Leaf\\Assembled\\TPM"  # Change this to your desired output directory
+    gtf_folder = "F:\\ABC Transporters\\Phaseolus_NEW_DEG\\NEW_SRA\\Salt_Root\\Assembled"  # Change this to your GTF files directory
+    output_folder = "F:\\ABC Transporters\\Phaseolus_NEW_DEG\\NEW_SRA\\Salt_Root\\Assembled\\TPM"  # Change this to your desired output directory
 
     # Check if the input folder exists
     if not os.path.exists(gtf_folder):
