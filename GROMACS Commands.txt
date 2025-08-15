@@ -1,0 +1,77 @@
+Install ROCm
+
+sudo usermod -a -G render,video $LOGNAME
+
+sudo dnf install hipblas-devel hipblaslt-devel hipcc hipcc-libomp-devel \
+hipcub-devel hipfft-devel hipfort-devel hiprand-devel hiprt-devel \
+hipsolver-devel hipsparse-devel rocalution-devel rocblas-devel rocfft-devel \
+rocm-clang-devel rocm-clang-tools-extra-devel rocm-cmake rocm-comgr-devel \
+rocm-core-devel rocm-hip-devel rocm-libc++-devel rocm-libc++-static \
+rocm-llvm-devel rocm-omp-devel rocm-runtime-devel rocm-rpp-devel \
+rocm-smi-devel rocminfo rocdecode-devel rocjpeg-devel rocprim-devel \
+rocrand-devel rocsolver-devel rocsparse-devel rocthrust-devel \
+roctracer-devel miopen
+
+Install dependencies
+
+sudo dnf install llvm18 llvm18-devel clang18 clang18-devel lld18
+sudo dnf install boost-devel boost-context boost-fiber
+
+echo 'export HSA_ENABLE_SDMA=0' >> ~/.bashrc
+source ~/.bashrc
+
+Install AdaptiveCpp
+
+git clone https://github.com/AdaptiveCpp/AdaptiveCpp.git
+cd AdaptiveCpp
+mkdir build
+cd build
+
+cmake .. \
+-DCMAKE_INSTALL_PREFIX=/opt/AdaptiveCpp-25.02.0 \
+-DROCM_PATH=/usr/lib64/rocm \
+-DCMAKE_C_COMPILER=/usr/lib64/llvm18/bin/clang \
+-DCMAKE_CXX_COMPILER=/usr/lib64/llvm18/bin/clang++ \
+-DLLVM_DIR=/usr/lib64/llvm18/lib/cmake/llvm/ \
+-DACPP_COMPILER_FEATURE_PROFILE=full \
+-DWITH_ROCM_BACKEND=ON \
+-DWITH_SSCP_COMPILER=OFF \
+-DWITH_OPENCL_BACKEND=OFF \
+-DWITH_LEVEL_ZERO_BACKEND=OFF \
+-DWITH_CUDA_BACKEND=OFF \
+-DDEFAULT_TARGETS=‘hip:gfx1032’ \
+-DROCM_DEVICE_LIBS_PATH=/usr/lib64/rocm/lib \
+-DCLANG_EXECUTABLE_PATH=/usr/lib64/llvm18/bin/clang++ \
+-DCLANG_INCLUDE_PATH=/usr/lib64/llvm18/include \
+-DROCM_CLANG_PATH=/usr/lib64/llvm18/bin/clang++ \
+-DROCM_CXX_FLAGS="--rocm-device-lib-path=/usr/lib64/rocm/llvm/lib/clang/18/amdgcn/bitcode"
+
+make -j$(nproc)
+sudo make install
+
+echo 'export PATH=/opt/AdaptiveCpp-25.02.0/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+
+acpp-info
+
+Install GROMACS
+
+cmake .. \
+-DCMAKE_C_COMPILER=/usr/lib64/llvm18/bin/clang \
+-DCMAKE_CXX_COMPILER=/usr/lib64/llvm18/bin/clang++ \
+-DGMX_GPU=SYCL \
+-DGMX_SYCL=ACPP \
+-DHIPSYCL_TARGETS='hip:gfx1032' \
+-DGMX_GPU_FFT_LIBRARY=VkFFT \
+-DGMX_ENABLE_AMD_RDNA_SUPPORT=ON  \
+-DGMX_SIMD=AVX2_256 \
+-DREGRESSIONTEST_DOWNLOAD=ON \
+-DGMX_BUILD_OWN_FFTW=ON
+
+make -j$(nproc)
+make
+make check
+sudo make install
+source /usr/local/gromacs/bin/GMXRC
+echo 'source /usr/local/gromacs/bin/GMXRC' >> ~/.bashrc
+source ~/.bashrc
