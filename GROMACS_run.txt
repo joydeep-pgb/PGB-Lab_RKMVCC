@@ -1,0 +1,177 @@
+1.	GROMACS input files
+step5_input.gro
+step5_input.pdb
+step5_input.psf
+topol.top
+index.ndx
+step6.0_minimization.mdp
+step6.1_equilibration.mdp
+step6.2_equilibration.mdp
+step6.3_equilibration.mdp
+step6.4_equilibration.mdp
+step6.5_equilibration.mdp
+step6.6_equilibration.mdp
+step7_production.mdp
+Description of each file
+Step 6.0	EM	Energy minimisation
+Step 6.1	eq uilibration_NVT_step1	constant number (N), constant-volume (V), and constant-temperature (T),
+Step 6.2	eq uilibration_NVT_step2	
+Step 6.3	eq uilibration-NPT-step1	constant number (N), constant-pressure (P), and constant-temperature (T),
+Step 6.4	eq uilibration-NPT-step2	
+Step 6.5	eq uilibration-NPT-step3	
+Step 6.6	eq uilibration-NPT-step4	
+Step 7	production	
+
+
+Updated Workflow with Visualization
+    1. Energy Minimization
+gmx grompp -f step6.0_minimization.mdp -c step5_input.gro -p topol.top -n index.ndx -o em.tpr -r step5_input.gro -maxwarn 1 (optional)
+gmx mdrun -v -deffnm em
+
+Visualize energy minimization
+gmx energy -f em.edr -o em.xvg
+👉 When prompted, choose Potential (and optionally Total-Energy).
+xmgrace em.xvg
+
+    2. Equilibration (step6.1 → step6.6)
+Each equilibration step produces .edr (energies), .log, .gro, .cpt.
+CHARMM-GUI usually gives 6 equilibration steps (step6.1 → step6.6) with gradually releasing restraints. You run them sequentially:
+# Step 6.1
+gmx grompp -f step6.1_equilibration.mdp -c em.gro -p topol.top -n index.ndx -o eq1.tpr -r em.gro
+gmx mdrun -v -deffnm eq1
+
+# Step 6.2
+gmx grompp -f step6.2_equilibration.mdp -c eq1.gro -t eq1.cpt -p topol.top -n index.ndx -r eq1.gro -o eq2.tpr
+gmx mdrun -v -deffnm eq2
+
+# Step 6.3
+gmx grompp -f step6.3_equilibration.mdp -c eq2.gro -t eq2.cpt -p topol.top -n index.ndx -o eq3.tpr -r eq2.gro
+gmx mdrun -v -deffnm eq3
+
+# Step 6.4
+gmx grompp -f step6.4_equilibration.mdp -c eq3.gro -t eq3.cpt -p topol.top -n index.ndx -o eq4.tpr -r eq3.gro
+gmx mdrun -v -deffnm eq4
+
+# Step 6.5
+gmx grompp -f step6.5_equilibration.mdp -c eq4.gro -t eq4.cpt -p topol.top -n index.ndx -o eq5.tpr -r eq4.gro
+gmx mdrun -v -deffnm eq5
+
+# Step 6.6 (final equilibration)
+gmx grompp -f step6.6_equilibration.mdp -c eq5.gro -t eq5.cpt -p topol.top -n index.ndx -o eq6.tpr -r eq5.gro
+gmx mdrun -v -deffnm eq6
+Then Concatenate step6.1 → step6.6 → step7 (all .edr files) for energy/thermo analysis.
+gmx eneconv -f step6.*.edr step7*.edr -o full_energies.edr
+
+Visualize temperature, pressure, density
+gmx energy -f eq1.edr -o eq1_temp.xvg
+# choose "Temperature"
+xmgrace eq1_temp.xvg
+gmx energy -f eq1.edr -o eq1_press.xvg
+# choose "Pressure"
+xmgrace eq1_press.xvg
+gmx energy -f eq1.edr -o eq1_dens.xvg
+# choose "Density"
+xmgrace eq1_dens.xvg
+Repeat for eq2, eq3, … eq6.
+
+    3. Production MD
+Now you start the real simulation (no restraints).
+gmx grompp -f step7_production.mdp -c eq6.gro -t eq6.cpt -p topol.top -n index.ndx -o md_0_1.tpr
+gmx mdrun -v -deffnm md_0_1
+
+That gives you your final production run (length depends on dt and nsteps in step7_production.mdp).
+Suppose it shows:
+dt      = 0.002	and	nsteps  = 50000000
+→ That means dt × nsteps = 100,000 ps = 100 ns per production block.
+(Your actual numbers may differ; adjust accordingly.)
+
+10 manual production segments (10 ns each) (Check for nsteps no)
+Segment 1 (10 ns)
+gmx grompp -f step7_production.mdp -o step7_1.tpr -c eq6.gro -t eq6.cpt -p topol.top -n index.ndx
+gmx mdrun -v -deffnm step7_1
+
+Now extend this every 10 ns 10 times using previous .cpt file
+gmx convert-tpr -s step7_1.tpr -o step7_2.tpr -extend 10000	(For 20 ns)
+gmx mdrun -deffnm step7_2 -cpi step7_1.cpt -append no
+
+
+gmx convert-tpr -s step7_2.tpr -o step7_3.tpr -extend 10000 (For 20+10 = 30 ns)
+gmx mdrun -deffnm step7_3 -cpi step7_2.cpt -append no
+
+
+gmx convert-tpr -s step7_3.tpr -o step7_4.tpr -extend 10000 (For 30+10 = 40 ns)
+gmx mdrun -deffnm step7_4 -cpi step7_3.cpt -append no
+
+
+After the run You concatenate the trajectory files:
+gmx trjcat -f step7_*.xtc -o full_production.xtc (For trajectory)
+gmx eneconv -f step7_*.edr -o full_production.edr (For energy)
+or,
+gmx trjcat -f step7_1.xtc step7_2.xtc step7_3.xtc step7_4.xtc step7_5.xtc step7_6.xtc step7_7.xtc step7_8.xtc step7_9.xtc step7_10.xtc -o step7_full.xtc (For trajectory)
+fit & center -> xtc (smaller)
+gmx trjconv -s step7_10.tpr -f step7_10.xtc -o md_0_100_center.xtc -pbc mol -ur compact -center -n index.ndx (optional)
+# select groups when prompted: usually "Protein" then "System" (or use -n index.ndx to automate)
+
+gmx trjconv -s step7_10.tpr -f md_0_100_center.xtc -o md_0_100_fit.xtc -fit rot+trans -n index.ndx
+(Same either Protein or Protein+LIG then output for the whole system)
+
+RMSD (structural deviation):
+gmx rms -s step7_10.tpr -f step7_full_fit.xtc -o rmsd.xvg -tu ns
+# select reference and fitting groups when prompted (e.g. Backbone / Backbone, For Protein only)
+xmgrace rmsd.xvg
+
+RMSF (residue fluctuations):
+gmx rmsf -s step7_10.tpr -f step7_full_fit.xtc -o rmsf.xvg -res (optional -res)
+select c-alpha
+xmgrace rmsf.xvg
+
+Radius of gyration:
+gmx gyrate -s step7_10.tpr -f step7_full_fit.xtc -o gyrate.xvg
+xmgrace gyrate.xvg
+
+Typical trajectory analysis workflow (CHARMM-GUI systems)
+After your production run finishes, you’ll usually have:
+    • md.xtc → trajectory (compressed, atomic coordinates over time)
+    • md.edr → energy file
+    • md.log → log file
+    • md.tpr → run input (contains topology + parameters)
+    • md.gro → final coordinates
+
+gmx trjconv -s md.tpr -f md.xtc -o md_noPBC.xtc -pbc mol -center
+    • Choose protein or membrane group as “center”
+    • Choose System for output
+# select groups when prompted: usually "Protein" then "System" (or use -n index.ndx to automate)
+TO CHECK STABILITY
+RMSD
+gmx rms -f md_noPBC.xtc -s md.tpr -o rmsd.xvg
+    • select backbone
+    • select backbone
+xmgrace rmsd.xvg
+gmx rms -f md_noPBC.xtc -s md.tpr -o rmsd1.xvg -tu ns
+    • select backbone 
+    • select backbone
+xmgrace rmsd.xvg rmsd1.xvg
+
+RMSF
+gmx rmsf -f md_noPBC.xtc -s md.tpr -o rmsf.xvg
+select c-alpha
+xmgrace rmsf.xvg
+
+gmx rmsf -f md_noPBC.xtc -s md.tpr -o rmsf1.xvg -res
+select c-alpha
+xmgrace rmsf1.xvg
+
+GYRATION
+gmx gyrate -f md_noPBC.xtc -s md.tpr -o gyrate.xvg
+xmgrace gyrate.xvg
+
+# Energy checks
+gmx energy -f md_0_1.edr -o md_temp.xvg
+xmgrace md_temp.xvg
+
+# select "Pressure"
+gmx energy -f md_0_1.edr -o md_press.xvg
+xmgrace md_press.xvg
+# select "Density"
+gmx energy -f md_0_1.edr -o md_dens.xvg
+xmgrace md_dens.xvg
