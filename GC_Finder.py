@@ -18,13 +18,10 @@ def gc_fraction(seq):
     a = s.count("A")
     t = s.count("T")
     denom = a+t+g+c
-    return (g+c)/denom if denom>0 else 0
+    return (g+c)/denom if denom > 0 else 0
 
 def find_gc_start_end(seq, min_len=19, max_len=20, gc_threshold=0.0):
-    """
-    Find subsequences of length 19–20 nt that start/end with G/C
-    AND have GC% >= gc_threshold.
-    """
+    """Primer Finder"""
     seq = ''.join(ch for ch in seq if ch.isalpha()).upper()
     n = len(seq)
     hits = []
@@ -44,50 +41,85 @@ def find_gc_start_end(seq, min_len=19, max_len=20, gc_threshold=0.0):
                     })
     return hits
 
+
 # ================= Web UI =================
 HTML_TEMPLATE = """
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <title>GC-start/end 19–20 nt Finder with GC% Filter</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Primer Finder</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; margin: 2em; }
-    textarea { width: 100%; height: 200px; }
-    table { border-collapse: collapse; margin-top: 1em; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
-    code { background: #f5f5f5; padding: 2px 4px; }
+    body { background: #f9fafb; }
+    .container { max-width: 900px; margin-top: 2em; }
+    textarea { font-family: monospace; }
+    table code { font-size: 0.9em; }
   </style>
 </head>
 <body>
-  <h2>Find 19–20 nt Sequences (Start & End with G/C + GC% Threshold)</h2>
-  <form method="POST" enctype="multipart/form-data">
-    <label>Paste DNA Sequence:</label><br>
-    <textarea name="sequence">{{sequence}}</textarea><br><br>
-    OR upload FASTA file: <input type="file" name="fasta"><br><br>
-    GC% threshold (0–1): <input type="number" step="0.01" name="gc_threshold" value="{{gc_threshold}}">
-    <br><br>
-    <button type="submit">Search</button>
-  </form>
+<div class="container">
+  <h2 class="mb-4 text-primary">Primer Finder</h2>
+  <div class="card shadow-sm p-4 mb-4">
+    <form method="POST" enctype="multipart/form-data">
+      <div class="mb-3">
+        <label class="form-label">Paste DNA Sequence</label>
+        <textarea class="form-control" name="sequence" rows="6">{{sequence}}</textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Or upload FASTA file</label>
+        <input type="file" class="form-control" name="fasta">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">GC% threshold (0–1)</label>
+        <input type="number" step="0.01" class="form-control" name="gc_threshold" value="{{gc_threshold}}">
+      </div>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+  </div>
 
   {% if hits is not none %}
     {% if hits|length > 0 %}
-      <h3>Found {{hits|length}} sequences:</h3>
-      <table>
-        <tr><th>Start</th><th>End</th><th>Length</th><th>GC%</th><th>Sequence</th></tr>
-        {% for h in hits %}
-          <tr>
-            <td>{{h.start}}</td>
-            <td>{{h.end}}</td>
-            <td>{{h.length}}</td>
-            <td>{{h.gc_percent}}</td>
-            <td><code>{{h.sequence}}</code></td>
-          </tr>
-        {% endfor %}
-      </table>
+      <div class="card shadow-sm p-4">
+        <h5 class="mb-3">Found {{hits|length}} sequences:</h5>
+        <div class="table-responsive">
+          <table class="table table-striped table-hover align-middle">
+            <thead class="table-dark">
+              <tr>
+                <th>Start</th><th>End</th><th>Length</th><th>GC%</th><th>Sequence</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for h in hits %}
+                <tr>
+                  <td>{{h.start}}</td>
+                  <td>{{h.end}}</td>
+                  <td>{{h.length}}</td>
+                  <td>{{h.gc_percent}}</td>
+                  <td><code>{{h.sequence}}</code></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="copySeq('{{h.sequence}}')">Copy</button>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     {% else %}
-      <p><b>No valid sequences found with current parameters.</b></p>
+      <div class="alert alert-warning">No valid sequences found with current parameters.</div>
     {% endif %}
   {% endif %}
+</div>
+
+<script>
+function copySeq(seq) {
+  navigator.clipboard.writeText(seq).then(() => {
+    alert("Copied: " + seq);
+  });
+}
+</script>
 </body>
 </html>
 """
@@ -100,7 +132,6 @@ def index():
 
     if request.method=="POST":
         seq = request.form.get("sequence","").strip()
-        # file upload
         f = request.files.get("fasta")
         if f and f.filename:
             content=f.read().decode("utf-8")
