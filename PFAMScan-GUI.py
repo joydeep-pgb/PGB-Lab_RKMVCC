@@ -71,9 +71,7 @@ class PfamWorker(QObject):
             "-fasta", self.config['fasta_file'],
             "-dir", self.config['pfam_dir'],
             "-outfile", output_file,
-            "-cpu", str(self.config['cpu']),
-            "-e_dom", str(self.config['dom_evalue']),
-            "-e_seq", str(self.config['seq_evalue'])
+            "-cpu", str(self.config['cpu'])
         ]
 
         # ✅ Add --as if user selected Predict Active Sites
