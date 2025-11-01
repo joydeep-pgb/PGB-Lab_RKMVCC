@@ -1,4 +1,4 @@
-import sys
+import os
 
 def extract_transcript_id(file_path):
     transcript_ids = set()
@@ -11,19 +11,24 @@ def extract_transcript_id(file_path):
 
     return transcript_ids
 
-def main(input_file, output_file):
-    transcript_ids = extract_transcript_id(input_file)
+
+def main():
+    # ✅ Set your input and output file paths here
+    input_gtf = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Isoformswith/Drought/Sbicolor_Drought_DAS.gtf"
+    output_file = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Isoformswith/Drought/Transcript_IDs_Sbicolor_Drought_DAS.txt"
+
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+    transcript_ids = extract_transcript_id(input_gtf)
 
     with open(output_file, 'w') as out_file:
-        for transcript_id in transcript_ids:
+        for transcript_id in sorted(transcript_ids):
             out_file.write(f"{transcript_id}\n")
 
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python script.py input_gtf output_file")
-        sys.exit(1)
-    
-    input_gtf = sys.argv[1]
-    output_file = sys.argv[2]
+    print(f"✅ Extracted {len(transcript_ids)} transcript IDs.")
+    print(f"💾 Saved to: {output_file}")
 
-    main(input_gtf, output_file)
+
+if __name__ == "__main__":
+    main()
