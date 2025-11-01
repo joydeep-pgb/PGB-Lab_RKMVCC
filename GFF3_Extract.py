@@ -61,9 +61,9 @@ def filter_gtf(gtf_file, id_file, output_file):
 # 🔧 SET YOUR FILE PATHS HERE
 # ------------------------
 
-gtf_file = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Isoformswith/Drought/Sbicolor_Merge.gtf"
-id_file = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Isoformswith/Drought/DAS.txt"
-output_file = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Isoformswith/Drought/Sbicolor_Drought_DAS.gtf"
+gtf_file = "F:\\Sorghum_MetaDEG\\Isoformswith\\Sbicolor_Merge.gtf"
+id_file = "F:\\Sorghum_MetaDEG\\Isoformswith\\Salt\\Salt_DAS.txt"
+output_file = "F:\\Sorghum_MetaDEG\\Isoformswith\\Salt\\Sbicolor_Salt_DAS.gtf"
 
 # ------------------------
 # Run filtering
