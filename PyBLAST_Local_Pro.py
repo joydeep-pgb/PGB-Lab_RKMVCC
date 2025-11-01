@@ -177,7 +177,7 @@ class BlastApp(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle("PyBLAST Local Pro")
+        self.setWindowTitle("PyBLAST Pro")
         self.setGeometry(100, 100, 1050, 800)
 
         central = QWidget()
