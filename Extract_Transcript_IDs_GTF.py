@@ -11,23 +11,12 @@ def extract_transcript_id(file_path):
 
     return transcript_ids
 
-def main():
-    # === Set file paths here ===
-    input_gtf = "/run/media/joydeep/One_HDD/Sorghum_MetaDEG/WGCNA/Sbicolor_DAS_Isoforms.gtf"
-    output_file = "/run/media/joydeep/One_HDD/Sorghum_MetaDEG/WGCNA/DAS_IsoformIDs.txt"
-    # ============================
-
-    if not os.path.exists(input_gtf):
-        print(f"Error: Input file not found -> {input_gtf}")
-        return
-
-    transcript_ids = extract_transcript_id(input_gtf)
+def main(input_file, output_file):
+    transcript_ids = extract_transcript_id(input_file)
 
     with open(output_file, 'w') as out_file:
         for transcript_id in sorted(transcript_ids):
             out_file.write(f"{transcript_id}\n")
-
-    print(f"✅ Extracted {len(transcript_ids)} transcript IDs saved to: {output_file}")
 
 if __name__ == "__main__":
     main()

@@ -61,9 +61,9 @@ def filter_gtf(gtf_file, id_file, output_file):
 # 🔧 SET YOUR FILE PATHS HERE
 # ------------------------
 
-gtf_file = "/run/media/joydeep/One_HDD/Mango_AS_rMATS/rMATS/mango_AS_meta.gtf"
-id_file = "/run/media/joydeep/One_HDD/Mango_AS_rMATS/rMATS/rMATS DATA/Final Events/Total_DAS_Events.txt"
-output_file = "/run/media/joydeep/One_HDD/Mango_AS_rMATS/rMATS/DAS_filtered.gtf"
+gtf_file = "F:\\Sorghum_MetaDEG\\Isoformswith\\Sbicolor_Merge.gtf"
+id_file = "F:\\Sorghum_MetaDEG\\Isoformswith\\Salt\\Salt_DAS.txt"
+output_file = "F:\\Sorghum_MetaDEG\\Isoformswith\\Salt\\Sbicolor_Salt_DAS.gtf"
 
 # ------------------------
 # Run filtering

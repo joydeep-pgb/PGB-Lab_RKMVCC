@@ -2,13 +2,13 @@ import os
 import subprocess
 
 # Define the directory where your BAM files are located
-bam_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Root/Mapped/"
+bam_dir = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Salt/Mapped/STD4/TR/"
 
 # Define the directory where you want to save the assembled transcripts
-output_dir = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Drought_Root/Assembled/"
+output_dir = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Salt/Salt_AS_Counts/"
 
 # Define the path to the reference annotation GTF file
-reference_gtf = "/media/pgb-lab/One_HDD/Pvulgaris_DEG/NEW_SRA/Pvulgaris_Index/Pvulgaris.gff3"
+reference_gtf = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Isoform_Identification/Sorghum_SUPPA/Sbicolor_Merge.gtf"
 
 # Create the output directory if it doesn't exist
 os.makedirs(output_dir, exist_ok=True)
