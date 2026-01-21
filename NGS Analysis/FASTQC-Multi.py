@@ -1,43 +1,82 @@
 import os
 import subprocess
 import logging
-from multiprocessing import Pool
+from pathlib import Path
+from multiprocessing import Pool, cpu_count
+from tqdm import tqdm  # Install via: pip install tqdm
 
-# Configure logging
-logging.basicConfig(
-    filename='fastqc_analysis.log', 
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# ================= CONFIGURATION =================
+# Set your paths and parameters here
+INPUT_FOLDER = "/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Drought/FASTQ/SE/"
+OUTPUT_FOLDER = "/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Drought/FASTQ/Reports/"
+NUM_WORKERS = 4  # Number of parallel processes
+# =================================================
 
-# Define input and output folders
-input_folder = "/mnt/WD_Blue/Sorghum/TEST/FASTQ/"
-output_folder = "/mnt/WD_Blue/Sorghum/TEST/fastqc/"
+def setup_logging(output_dir):
+    """Logs to a file in the output directory."""
+    log_path = Path(output_dir) / 'fastqc_analysis.log'
+    logging.basicConfig(
+        filename=log_path,
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        filemode='w' # 'w' overwrites log each time, 'a' appends
+    )
 
-# Create output folder if it doesn't exist
-if not os.path.exists(output_folder):
-    os.makedirs(output_folder)
-
-# Get a list of all FASTQ files in the input folder
-fastq_files = [file for file in os.listdir(input_folder) if file.endswith('.fastqsanger.gz')]
-
-def run_fastqc(fastq_file):
-    input_path = os.path.join(input_folder, fastq_file)
-    command = f"fastqc -o {output_folder} {input_path}"
+def run_fastqc(args_tuple):
+    """The task performed by each worker."""
+    fastq_path, output_dir = args_tuple
     
-    logging.info(f"Processing file: {fastq_file}")
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    # Building the command as a list is safer than a string
+    command = ["fastqc", "-o", str(output_dir), str(fastq_path)]
     
-    if result.returncode == 0:
-        logging.info(f"Successfully processed: {fastq_file}")
-    else:
-        logging.error(f"Error processing {fastq_file}: {result.stderr}")
+    try:
+        # We capture output to keep it from cluttering the tqdm progress bar
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        return True, fastq_path.name
+    except subprocess.CalledProcessError as e:
+        return False, f"{fastq_path.name}: {e.stderr}"
+
+def main():
+    # 1. Prepare Paths
+    input_dir = Path(INPUT_FOLDER)
+    output_dir = Path(OUTPUT_FOLDER)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 2. Setup Log
+    setup_logging(output_dir)
+
+    # 3. Find Files
+    # This finds .fastq.gz, .fq.gz, .fastq, and .fq
+    fastq_files = [f for f in input_dir.iterdir() if f.name.endswith(('.fastq.gz', '.fq.gz', '.fastq', '.fq'))]
+    
+    if not fastq_files:
+        print(f"Error: No FASTQ files found in {INPUT_FOLDER}")
+        return
+
+    # 4. Process with Progress Bar
+    tasks = [(f, output_dir) for f in fastq_files]
+    
+    print(f"Starting FastQC on {len(fastq_files)} files...")
+    print(f"Using {NUM_WORKERS} parallel workers.")
+
+    success_count = 0
+    failure_count = 0
+
+    with Pool(NUM_WORKERS) as pool:
+        # imap_unordered allows the progress bar to update as soon as ANY file is done
+        for success, message in tqdm(pool.imap_unordered(run_fastqc, tasks), total=len(tasks), desc="FastQC Progress"):
+            if success:
+                logging.info(f"Successfully processed: {message}")
+                success_count += 1
+            else:
+                logging.error(f"Error processing {message}")
+                failure_count += 1
+
+    # 5. Final Summary
+    print("\n--- Analysis Completed ---")
+    print(f"Successfully processed: {success_count}")
+    print(f"Failures: {failure_count}")
+    print(f"Logs saved to: {output_dir / 'fastqc_analysis.log'}")
 
 if __name__ == "__main__":
-    num_workers = 4  # Set the number of parallel processes
-    
-    with Pool(num_workers) as pool:
-        pool.map(run_fastqc, fastq_files)
-    
-    logging.info("FastQC analysis completed.")
-    print("FastQC analysis completed.")
+    main()
