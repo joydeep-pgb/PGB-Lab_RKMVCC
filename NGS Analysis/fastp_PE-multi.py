@@ -1,57 +1,89 @@
-import os
 import subprocess
 import logging
-from multiprocessing import Pool
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
+from tqdm import tqdm
 
-# Configure logging
-logging.basicConfig(
-    filename='fastp_analysis.log', 
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# ==================== CONFIGURATION ====================
+# Define your paths here
+INPUT_DIR  = Path("/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Drought/FASTQ/")
+OUTPUT_DIR = Path("/run/media/joydeep/Blue_Drive/Circ_Trimmed/Drought/")
+REPORT_DIR = OUTPUT_DIR / "fastp-reports"
+LOG_FILE   = "fastp_analysis.log"
 
-# Define directories
-input_dir = "/media/pgb-lab/One_HDD/Sorghum_MetaDEG/Drought/FASTQ/"
-output_dir = "/home/pgb-lab/Documents/Sorghum_circRNA/Drought/Trimmed_FASTq/"
-report_dir = "/home/pgb-lab/Documents/Sorghum_circRNA/Drought/Trimmed_FASTq/fastp-reports/"
+# Performance Settings
+NUM_WORKERS = 10     # Number of samples to process at once
+THREADS_PER_JOB = 2  # Threads fastp uses per sample (e.g., 2 threads * 10 workers = 20 total CPUs used)
+# =======================================================
 
-# Create necessary directories
-os.makedirs(output_dir, exist_ok=True)
-os.makedirs(report_dir, exist_ok=True)
-
-# Get list of paired-end FASTQ files
-fastq_files_1 = [f for f in os.listdir(input_dir) if f.endswith("_1.fastq.gz")]
-
-def run_fastp(fastq_file_1):
-    sample_name = fastq_file_1.replace("_1.fastq.gz", "")
-    fastq_file_2 = fastq_file_1.replace("_1.fastq.gz", "_2.fastq.gz")
-    
-    input_path_1 = os.path.join(input_dir, fastq_file_1)
-    input_path_2 = os.path.join(input_dir, fastq_file_2)
-    output_path_1 = os.path.join(output_dir, f"{sample_name}_1.fastq.gz")
-    output_path_2 = os.path.join(output_dir, f"{sample_name}_2.fastq.gz")
-    html_report = os.path.join(report_dir, f"{sample_name}_report.html")
-    json_report = os.path.join(report_dir, f"{sample_name}_report.json")
-    
-    # Construct fastp command
-    fastp_cmd = (
-        f"fastp -i {input_path_1} -I {input_path_2} -o {output_path_1} -O {output_path_2} "
-        f"-h {html_report} -j {json_report} --thread 1 -R 'Fastp report for {sample_name}'"
+def setup_logging():
+    logging.basicConfig(
+        filename=LOG_FILE,
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
     )
+
+def run_fastp(fastq_r1):
+    """Processes a single pair of FASTQ files."""
+    # Derive filenames
+    sample_name = fastq_r1.name.replace("_1.fastq.gz", "")
+    fastq_r2 = fastq_r1.parent / fastq_r1.name.replace("_1.fastq.gz", "_2.fastq.gz")
     
-    logging.info(f"Processing: {sample_name}")
-    result = subprocess.run(fastp_cmd, shell=True, capture_output=True, text=True)
-    
-    if result.returncode == 0:
+    out_r1 = OUTPUT_DIR / f"{sample_name}_1.fastq.gz"
+    out_r2 = OUTPUT_DIR / f"{sample_name}_2.fastq.gz"
+    html_report = REPORT_DIR / f"{sample_name}_report.html"
+    json_report = REPORT_DIR / f"{sample_name}_report.json"
+
+    # Safety check: Ensure R2 exists
+    if not fastq_r2.exists():
+        logging.error(f"SKIPPED: Missing R2 file for {sample_name}")
+        return
+
+    # Construct command
+    cmd = [
+        "fastp",
+        "-i", str(fastq_r1),
+        "-I", str(fastq_r2),
+        "-o", str(out_r1),
+        "-O", str(out_r2),
+        "-h", str(html_report),
+        "-j", str(json_report),
+        "--thread", str(THREADS_PER_JOB),
+        "--max_len1", "100",
+        "--max_len2", "100",
+        "--length_required", "100",
+        "-R", f"Fastp report for {sample_name}"
+    ]
+
+    try:
+        logging.info(f"Processing: {sample_name}")
+        # check=True will raise an error if fastp fails
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
         logging.info(f"Successfully processed: {sample_name}")
-    else:
-        logging.error(f"Error processing {sample_name}: {result.stderr}")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error processing {sample_name}: {e.stderr}")
+
+def main():
+    # Create directories if they don't exist
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    
+    setup_logging()
+
+    # Find all R1 files
+    fastq_files_r1 = list(INPUT_DIR.glob("*_1.fastq.gz"))
+    
+    if not fastq_files_r1:
+        print(f"Error: No files found in {INPUT_DIR}")
+        return
+
+    print(f"Found {len(fastq_files_r1)} samples. Starting parallel trimming...")
+
+    # Execute in parallel
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+        list(tqdm(executor.map(run_fastp, fastq_files_r1), total=len(fastq_files_r1), desc="Trimming Progress"))
+
+    print(f"\nTask Complete. Log saved to {LOG_FILE}")
 
 if __name__ == "__main__":
-    num_workers = 10  # Set the number of parallel processes
-    
-    with Pool(num_workers) as pool:
-        pool.map(run_fastp, fastq_files_1)
-    
-    logging.info("Trimming complete.")
-    print("Trimming complete.")
+    main()
