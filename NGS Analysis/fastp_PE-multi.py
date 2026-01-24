@@ -6,14 +6,14 @@ from tqdm import tqdm
 
 # ==================== CONFIGURATION ====================
 # Define your paths here
-INPUT_DIR  = Path("/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Drought/FASTQ/")
-OUTPUT_DIR = Path("/run/media/joydeep/Blue_Drive/Circ_Trimmed/Drought/")
+INPUT_DIR  = Path("/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Salt/FASTQ/")
+OUTPUT_DIR = Path("/run/media/joydeep/Blue_Drive/SBI/Salt/Circ_Trimmed/")
 REPORT_DIR = OUTPUT_DIR / "fastp-reports"
 LOG_FILE   = "fastp_analysis.log"
 
 # Performance Settings
 NUM_WORKERS = 10     # Number of samples to process at once
-THREADS_PER_JOB = 2  # Threads fastp uses per sample (e.g., 2 threads * 10 workers = 20 total CPUs used)
+THREADS_PER_JOB = 1  # Threads fastp uses per sample (e.g., 2 threads * 10 workers = 20 total CPUs used)
 # =======================================================
 
 def setup_logging():

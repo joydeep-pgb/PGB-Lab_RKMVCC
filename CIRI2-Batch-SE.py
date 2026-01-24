@@ -3,11 +3,11 @@ import glob
 import subprocess
 
 # ==================== SET YOUR PATHS HERE ====================
-INPUT_DIR  = "/home/pgb-lab/Documents/Sorghum_circRNA/Drought/RAW/"
-OUTPUT_DIR = "/home/pgb-lab/Documents/Sorghum_circRNA/Drought/CIRI2_Results_New"
+INPUT_DIR  = "/run/media/joydeep/Expansion/Sorghum_circRNA/Drought/Cleaned_FASTQ/SE/"
+OUTPUT_DIR = "/run/media/joydeep/Blue_Drive/SBI/Drought/CIRI2_Results_New/SE/"
 
-REF_FASTA  = "/home/pgb-lab/Documents/Sorghum_circRNA/BWA-MEM/sbi.fasta"
-GTF_ANNO   = "/home/pgb-lab/Documents/Sorghum_circRNA/Drought/DeNovo_Assembled/Sbi_merged_circ.gtf"
+REF_FASTA  = "/run/media/joydeep/Expansion/Sorghum_circRNA/BWA-MEM/sbi.fasta"
+GTF_ANNO   = "/run/media/joydeep/Expansion/Sorghum_circRNA/GTF_Files/SbicircRNA_merged.gtf"
 
 THREADS    = "10"
 # ============================================================
