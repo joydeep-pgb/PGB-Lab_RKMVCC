@@ -7,9 +7,9 @@ use Parallel::ForkManager;
 use POSIX qw(strftime);
 
 # ================= CONFIGURATION =================
-my $INPUT_FOLDER  = "/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Salt/FASTQ/";
-my $OUTPUT_FOLDER = "/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Salt/FASTQ/FastQC_Results/";
-my $NUM_WORKERS   = 6;
+my $INPUT_FOLDER  = "/run/media/joydeep/Blue_Drive/SBI/Heat/FASTQC/FASTQ_SE/";
+my $OUTPUT_FOLDER = "/run/media/joydeep/Blue_Drive/SBI/Heat/FASTQC/FASTQ_SE/FastQC_Results/";
+my $NUM_WORKERS   = 10;
 # =================================================
 
 # ----------------- Setup output dir -----------------

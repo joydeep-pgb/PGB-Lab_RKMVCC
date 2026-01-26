@@ -3,8 +3,8 @@ import glob
 import subprocess
 
 # ==================== SET YOUR PATHS HERE ====================
-INPUT_DIR  = "/run/media/joydeep/Expansion/Sorghum_circRNA/Salt/Circ_Trimmed/"
-OUTPUT_DIR = "/home/joydeep/Documents/SBI/Salt/CIRI2_Results/"
+INPUT_DIR  = "/run/media/joydeep/Expansion/Sorghum_circRNA/Heat/Circ_Trimmed/PE/"
+OUTPUT_DIR = "/home/joydeep/Documents/SBI/Heat/CIRI2_Results/"
 
 REF_FASTA  = "/run/media/joydeep/Expansion/Sorghum_circRNA/BWA-MEM/sbi.fasta"
 GTF_ANNO   = "/run/media/joydeep/Expansion/Sorghum_circRNA/GTF_Files/SbicircRNA_merged.gtf"

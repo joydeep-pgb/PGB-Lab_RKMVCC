@@ -8,9 +8,9 @@ import sys
 # --------------------------------------------------
 # Paths
 # --------------------------------------------------
-input_dir = "/home/pgb-lab/Documents/Sorghum_circRNA/Drought/Cleaned_FASTQ/SE/"
-output_dir = "/home/pgb-lab/Documents/Sorghum_circRNA/Drought/circRNA_Mapped/STAR_Output/"
-index_path = "/home/pgb-lab/Documents/Sorghum_circRNA/sbi_STAR_Index"
+input_dir = "/run/media/joydeep/Expansion/Sorghum_circRNA/Heat/Circ_Trimmed/SE/"
+output_dir = "/run/media/joydeep/Blue_Drive/SBI/Heat/SE_BAM/"
+index_path = "/run/media/joydeep/Expansion/Sorghum_circRNA/sbi_STAR_Index/"
 summary_dir = os.path.join(output_dir, "Summary")
 
 # --------------------------------------------------

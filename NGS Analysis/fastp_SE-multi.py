@@ -6,14 +6,14 @@ from tqdm import tqdm
 
 # ==================== CONFIGURATION ====================
 # Set your paths here
-INPUT_DIR  = Path("/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Drought/FASTQ/SE")
-OUTPUT_DIR = Path("/run/media/joydeep/Blue_Drive/Circ_Trimmed/Drought/SE/")
+INPUT_DIR  = Path("/run/media/joydeep/Blue_Drive/SBI/Heat/FASTQC/FASTQ_SE/")
+OUTPUT_DIR = Path("/run/media/joydeep/Expansion/Sorghum_circRNA/Heat/Circ_Trimmed/SE/")
 REPORT_DIR = OUTPUT_DIR / "fastp-reports"
 LOG_FILE   = "fastp_se_analysis.log"
 
 # Performance Settings
 NUM_WORKERS = 10      # Number of files to process in parallel
-THREADS_PER_JOB = 2   # Threads fastp uses per file
+THREADS_PER_JOB = 1   # Threads fastp uses per file
 # =======================================================
 
 def setup_logging():
@@ -41,8 +41,8 @@ def run_fastp_se(fastq_in):
         "-h", str(html_report),
         "-j", str(json_report),
         "--thread", str(THREADS_PER_JOB),
-        "--max_len1", "100",
-        "--length_required", "100",
+        "--max_len1", "70",
+        "--length_required", "70",
         "-R", f"Fastp SE report for {sample_name}"
     ]
 

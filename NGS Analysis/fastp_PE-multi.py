@@ -6,8 +6,8 @@ from tqdm import tqdm
 
 # ==================== CONFIGURATION ====================
 # Define your paths here
-INPUT_DIR  = Path("/run/media/joydeep/One_HDD/Sorghum_MetaDEG/Salt/FASTQ/")
-OUTPUT_DIR = Path("/run/media/joydeep/Blue_Drive/SBI/Salt/Circ_Trimmed/")
+INPUT_DIR  = Path("/run/media/joydeep/Blue_Drive/SBI/Heat/FASTQC/FASTQ_PE/")
+OUTPUT_DIR = Path("/home/joydeep/Documents/SBI/Heat/Circ_Trimmed/")
 REPORT_DIR = OUTPUT_DIR / "fastp-reports"
 LOG_FILE   = "fastp_analysis.log"
 
