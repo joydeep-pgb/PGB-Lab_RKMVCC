@@ -13,6 +13,7 @@
   -------
     gene_feature_ranks.csv       — gene rank table with SHAP
     plant_stress_cv_results.png  — CV + SHAP feature plots
+    plant_stress_cv_results.pdf  — same figure, vector PDF (Illustrator-editable)
     plant_stress_model.pt        — saved model (PyTorch)
           OR
     plant_stress_model.pkl       — saved model (sklearn)
@@ -24,6 +25,12 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+# ── Illustrator-editable PDF settings ────────────────────────
+# pdf.fonttype = 42  → embeds fonts as TrueType (Type 42);
+#   text remains selectable/editable in Adobe Illustrator.
+#   (fonttype = 3 would outline all text as paths — not editable.)
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"]  = 42
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Patch
 import warnings
@@ -525,6 +532,14 @@ def make_plots(fold_metrics, y_all, all_probs, feature_df):
 
     plt.savefig("plant_stress_cv_results.png", dpi=150, bbox_inches="tight")
     print("✔  Saved → plant_stress_cv_results.png")
+
+    # ── Illustrator-editable PDF ────────────────────────────────────────────
+    # Saved as vector graphics; text is TrueType (fonttype=42, set above)
+    # so it remains fully editable in Adobe Illustrator.
+    # Open in Illustrator: File > Open, then ungroup panels to edit freely.
+    plt.savefig("plant_stress_cv_results.pdf", bbox_inches="tight",
+                backend="pdf")
+    print("✔  Saved → plant_stress_cv_results.pdf  (Illustrator-editable)")
 
 
 # ─────────────────────────────────────────────────────────────
