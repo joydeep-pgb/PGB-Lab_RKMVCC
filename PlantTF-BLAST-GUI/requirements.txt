@@ -1,0 +1,4 @@
+PyQt6>=6.4
+
+# Optional: only needed if you want to export results as .xlsx
+# openpyxl>=3.1
