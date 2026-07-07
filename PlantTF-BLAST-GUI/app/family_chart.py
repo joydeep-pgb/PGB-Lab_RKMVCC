@@ -42,7 +42,7 @@ class FamilyBarChart(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         if not self._data:
-            painter.setPen(QColor("#999999"))
+            painter.setPen(QColor("#FFFFFF"))
             painter.drawText(
                 self.rect(),
                 Qt.AlignmentFlag.AlignCenter,
@@ -63,7 +63,7 @@ class FamilyBarChart(QWidget):
             color = QColor(_PALETTE[i % len(_PALETTE)])
 
             # label
-            painter.setPen(QColor("#333333"))
+            painter.setPen(QColor("#FFFFFF"))
             label_rect = QRectF(self.MARGIN, y, self.LABEL_WIDTH - 6, self.ROW_HEIGHT - 4)
             metrics = painter.fontMetrics()
             elided = metrics.elidedText(
@@ -79,7 +79,7 @@ class FamilyBarChart(QWidget):
             painter.drawRoundedRect(bar_rect, 3, 3)
 
             # count
-            painter.setPen(QColor("#333333"))
+            painter.setPen(QColor("#FFFFFF"))
             count_rect = QRectF(
                 bar_area_x0 + bar_w + 6, y, self.COUNT_WIDTH, self.ROW_HEIGHT - 4
             )
